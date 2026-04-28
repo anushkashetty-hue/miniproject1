@@ -159,63 +159,124 @@ def diet_options():
 
 @app.route("/diet", methods=["POST"])
 def diet():
-    """
-    POST /diet
-    Body: {
-        "dosha":           "Vata",          # required
-        "secondary_dosha": "Pitta",         # optional
-        "season":          "Summer",        # optional (auto-detected if absent)
-        "goal":            "Energy",        # optional (default: Balance)
-        "lifestyle":       "Vegetarian"     # optional (default: Vegetarian)
-    }
-    """
     body = request.get_json(silent=True) or {}
 
-    dosha     = body.get("dosha", "").strip().capitalize()
-    secondary = body.get("secondary_dosha", "").strip().capitalize() or None
-    season    = body.get("season", "").strip().capitalize() or None
-    goal      = body.get("goal", "Balance").strip().capitalize()
-    lifestyle = body.get("lifestyle", "Vegetarian").strip().capitalize()
-
-    # Normalise "Weight-loss" → "Weight"
-    if goal.startswith("Weight"):
-        goal = "Weight"
-
-    # Validate dosha
-    valid_doshas = ["Vata", "Pitta", "Kapha"]
-    if dosha not in valid_doshas:
-        return jsonify({
-            "error": f"Invalid dosha '{dosha}'",
-            "valid": valid_doshas,
-        }), 400
-
-    # Validate goal
-    valid_goals = ["Balance", "Detox", "Energy", "Weight", "Immunity"]
-    if goal not in valid_goals:
-        goal = "Balance"
-
-    # Validate lifestyle
-    valid_lifestyles = ["Vegetarian", "Vegan", "Non-vegetarian"]
-    if lifestyle not in valid_lifestyles:
-        lifestyle = "Vegetarian"
-
-    # Validate season
-    valid_seasons = ["Spring", "Summer", "Autumn", "Winter"]
-    if season and season not in valid_seasons:
-        season = None
+    dosha     = body.get("dosha", "Vata")
+    season    = body.get("season", "Summer")
+    goal      = body.get("goal", "Balance")
+    lifestyle = body.get("lifestyle", "Vegetarian")
+    seed = random.randint(1, 100000)
 
     try:
+        import requests, json, os, random
+
+        SYSTEM_PROMPT = """                You are an expert Ayurvedic nutritionist and creative meal planner. Generate a UNIQUE daily meal plan every time. Even for identical inputs, vary the meals creatively.
+
+                CRITICAL RULES:
+                1. VARIATION: Never repeat standard templates. Each call must feel fresh with different grains, vegetables, spices, cooking styles.
+                2. LIFESTYLE — THIS IS MANDATORY, NEVER IGNORE IT:
+                - Vegan: ZERO dairy, ghee, eggs, fish, meat. Use coconut oil, plant milks, tofu only.
+                - Vegetarian: Dairy and ghee allowed. NO eggs, fish, or meat whatsoever.
+                - Non-vegetarian: You MUST include eggs, fish, or light meats (chicken/mutton) in at least 2-3 meal slots. Do NOT make a vegetarian plan for non-vegetarian users. Examples: egg scramble at breakfast, grilled fish at lunch, chicken broth at dinner. If the user chose Non-vegetarian, animal proteins are REQUIRED, not optional.
+                3. AYURVEDA: Match foods to dosha balance. Use warm, digestible combinations. Avoid viruddha ahara (incompatible foods). Consider Agni.
+                4. DIVERSITY: Rotate grains (rice, millet, quinoa, barley, ragi, amaranth), proteins (dal, eggs, fish, chicken, paneer, chickpeas), cooking styles (porridge, stew, sauté, curry, soup, stir-fry, grilled).
+                5. REALISTIC: Meals must be actual home-cooked dishes with clear ingredients — not vague "bowls".
+                6. ENERGY: Breakfast=light/moderate, Lunch=heaviest, Dinner=light.
+                7. THEME: Internally pick a regional or seasonal theme (South Indian, North Indian, coastal, light detox, protein-rich) WITHOUT stating it. Let it guide the variety.
+                8. GOAL ALIGNMENT: Reflect the goal — Detox=lighter/cleansing, Energy=ojas-building, Weight=lighter/spiced, Immunity=turmeric/ashwagandha.
+                9. SEASON: Adapt ingredients to the current season.
+               10. Each response must differ significantly from previous outputs in ingredients, cuisine style, and dish names.
+                OUTPUT: Strict JSON only — no markdown fences, no prose, no explanation:
+                {
+                "breakfast": [{"name":"...","description":"...","energy":"Light|Moderate|Heavy"}],
+                "mid_morning": [{"name":"...","description":"...","energy":"Light|Moderate|Heavy"}],
+                "lunch": [{"name":"...","description":"...","energy":"Light|Moderate|Heavy|Nourishing"}],
+                "evening": [{"name":"...","description":"...","energy":"Light|Moderate"}],
+                "dinner": [{"name":"...","description":"...","energy":"Light|Moderate"}],
+                "daily_wisdom": "One Ayurvedic insight for today (1 sentence)",
+                "agni_tip": "Specific tip for this dosha's digestive fire (1 sentence)"
+                }
+
+                Ensure 2-3 items per meal section. No meal repeated across sections.
+"""
+
+        user_prompt = f"""
+                        Generate Ayurvedic meal plan:
+
+                        Dosha: {dosha}
+                        Goal: {goal}
+                        Lifestyle: {lifestyle}
+                        Season: {season}
+
+                        IMPORTANT RULES:
+                        - Vegan: no dairy or animal products
+                        - Vegetarian: dairy allowed, no eggs/meat
+                        - Non-vegetarian: MUST include eggs/fish/chicken
+                        - Lunch heaviest, dinner light
+                        - 2-3 items per meal
+                        Random seed: {seed}
+                        Create a completely different plan than previous ones.
+                        
+             """
+
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.9
+            }
+        )
+
+        data= response.json()
+        if "choices" not in data:
+            raise Exception(f"OpenAI error: {data}")
+        content = data["choices"][0]["message"]["content"]
+
+        # clean JSON
+        content = content.replace("```json", "").replace("```", "").strip()
+        try:
+          meals = json.loads(content)
+        except:
+            raise Exception("Invalid AI JSON response")
+
+        return jsonify({
+            "meals": meals,
+            "dosha": dosha,
+            "goal": goal,
+            "lifestyle": lifestyle,
+            "season": season,
+            "source": "ai"
+        })
+
+    except Exception as e:
+        print("AI failed:", e)
+
+        # fallback
         from diet_engine import generate_diet_plan
-        plan = generate_diet_plan(
+
+        meals = generate_diet_plan(
             dosha=dosha,
-            secondary_dosha=secondary,
             season=season,
             goal=goal,
-            lifestyle=lifestyle,
+            lifestyle=lifestyle
         )
-        return jsonify(plan)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+
+        return jsonify({
+            "meals": meals,
+            "dosha": dosha,
+            "goal": goal,
+            "lifestyle": lifestyle,
+            "season": season,
+            "source": "fallback"
+        })
 
 
 # ─────────────────────────────────────────────────────────────────────────

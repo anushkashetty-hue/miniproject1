@@ -1,1223 +1,1131 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
-/* ─── Inline theme constants ───────────────────────────────────────────── */
-const DOSHA_THEME = {
-  Vata:  { colour: "#5B6BBF", light: "#EEF0FB", text: "#2D3580", dark: "#1A2060", bg: "linear-gradient(135deg,#6B7FD4 0%,#A8B4E8 100%)", sym: "🌬️", el: "Air + Ether", agni: "Vishama Agni" },
-  Pitta: { colour: "#C4430A", light: "#FBF0EB", text: "#7A2005", dark: "#4A1003", bg: "linear-gradient(135deg,#D4541A 0%,#F0A060 100%)", sym: "🔥", el: "Fire + Water", agni: "Tikshna Agni" },
-  Kapha: { colour: "#1E7A4A", light: "#EAF7F0", text: "#0F4D2E", dark: "#082E1C", bg: "linear-gradient(135deg,#2E7D52 0%,#6ABF8E 100%)", sym: "🌍", el: "Earth + Water", agni: "Manda Agni" },
+/* ─── Design Tokens ───────────────────────────────────────────────────────── */
+const DOSHA = {
+  Vata:  { color:"#7C6FCD", bg:"#F0EEFB", text:"#3B2F8F", dark:"#1A1550", accent:"#5B4EC4", sym:"🌬️", el:"Air + Ether", agni:"Vishama Agni", gradient:"linear-gradient(135deg,#6B5FC4 0%,#9B8EE4 100%)" },
+  Pitta: { color:"#D05A1E", bg:"#FBF0EB", text:"#7A2A05", dark:"#4A1003", accent:"#C04010", sym:"🔥", el:"Fire + Water", agni:"Tikshna Agni", gradient:"linear-gradient(135deg,#C84A10 0%,#E88040 100%)" },
+  Kapha: { color:"#2E8A52", bg:"#EAF7F0", text:"#145030", dark:"#082E1C", accent:"#1E7A42", sym:"🌍", el:"Earth + Water", agni:"Manda Agni", gradient:"linear-gradient(135deg,#267044 0%,#5AAF80 100%)" },
 };
 
 const GOALS = [
-  { id: "Balance",   label: "Balance",    icon: "⚖️", desc: "Restore doshic harmony" },
-  { id: "Detox",     label: "Detox",      icon: "🫧", desc: "Cleanse Ama (toxins)" },
-  { id: "Energy",    label: "Energy",     icon: "⚡", desc: "Build Ojas & vitality" },
-  { id: "Weight",    label: "Weight",     icon: "🌿", desc: "Healthy weight management" },
-  { id: "Immunity",  label: "Immunity",   icon: "🛡️", desc: "Strengthen natural defenses" },
+  { id:"Balance",   icon:"⚖️", desc:"Restore doshic harmony" },
+  { id:"Detox",     icon:"🫧", desc:"Cleanse Ama (toxins)" },
+  { id:"Energy",    icon:"⚡", desc:"Build Ojas & vitality" },
+  { id:"Weight",    icon:"🌿", desc:"Healthy weight management" },
+  { id:"Immunity",  icon:"🛡️", desc:"Strengthen natural defenses" },
 ];
 
 const LIFESTYLES = [
-  { id: "Vegetarian",     label: "Vegetarian",      icon: "🥗" },
-  { id: "Vegan",          label: "Vegan",            icon: "🌱" },
-  { id: "Non-vegetarian", label: "Non-Vegetarian",   icon: "🍳" },
+  { id:"Vegetarian",     icon:"🥗", sub:"Dairy included" },
+  { id:"Vegan",          icon:"🌱", sub:"No animal products" },
+  { id:"Non-vegetarian", icon:"🍳", sub:"Eggs & light meats" },
 ];
 
 const SEASONS = [
-  { id: "Spring", label: "Spring", icon: "🌸" },
-  { id: "Summer", label: "Summer", icon: "☀️" },
-  { id: "Autumn", label: "Autumn", icon: "🍂" },
-  { id: "Winter", label: "Winter", icon: "❄️" },
+  { id:"Spring", icon:"🌸" }, { id:"Summer", icon:"☀️" },
+  { id:"Autumn", icon:"🍂" }, { id:"Winter", icon:"❄️" },
 ];
 
-const MEAL_ICONS = {
-  breakfast: "🌅",
-  mid_morning: "🍵",
-  lunch: "☀️",
-  evening: "🌤️",
-  dinner: "🌙",
+const MEAL_META = {
+  breakfast:   { icon:"🌅", label:"Breakfast",      time:"7:30–8:30 AM" },
+  mid_morning: { icon:"🍵", label:"Mid-Morning",    time:"10:30 AM" },
+  lunch:       { icon:"☀️", label:"Lunch",          time:"12:00–1:30 PM" },
+  evening:     { icon:"🌤️", label:"Evening",        time:"4:00–5:00 PM" },
+  dinner:      { icon:"🌙", label:"Dinner",         time:"6:30–7:30 PM" },
 };
 
-const MEAL_LABELS = {
-  breakfast: "Breakfast",
-  mid_morning: "Mid-Morning",
-  lunch: "Lunch",
-  evening: "Evening Snack",
-  dinner: "Dinner",
+const ENERGY_COLORS = {
+  Light:      { bg:"#E8F5E9", text:"#2E7D32", border:"#A5D6A7" },
+  Moderate:   { bg:"#FFF8E1", text:"#F57F17", border:"#FFD54F" },
+  Heavy:      { bg:"#FDE8E8", text:"#B71C1C", border:"#EF9A9A" },
+  Nourishing: { bg:"#E3F2FD", text:"#0D47A1", border:"#90CAF9" },
 };
 
-/* ─── Local diet knowledge (fallback when API unavailable) ─────────────── */
-const LOCAL_PLANS = {
+const TABS = [
+  { id:"meals",      label:"Meal Plan",    icon:"🍽️" },
+  { id:"timing",     label:"Timing",       icon:"⏰" },
+  { id:"spices",     label:"Spice Blends", icon:"🌶️" },
+  { id:"wisdom",     label:"Eating Rules", icon:"📜" },
+  { id:"avoid",      label:"Avoid",        icon:"⚠️" },
+  { id:"supplements",label:"Herbs",        icon:"🌱" },
+];
+
+/* ─── AI System Prompt ───────────────────────────────────────────────────── */
+const SYSTEM_PROMPT = `You are an expert Ayurvedic nutritionist and creative meal planner. Generate a UNIQUE daily meal plan every time. Even for identical inputs, vary the meals creatively.
+
+CRITICAL RULES:
+1. VARIATION: Never repeat standard templates. Each call must feel fresh with different grains, vegetables, spices, cooking styles.
+2. LIFESTYLE — THIS IS MANDATORY, NEVER IGNORE IT:
+   - Vegan: ZERO dairy, ghee, eggs, fish, meat. Use coconut oil, plant milks, tofu only.
+   - Vegetarian: Dairy and ghee allowed. NO eggs, fish, or meat whatsoever.
+   - Non-vegetarian: You MUST include eggs, fish, or light meats (chicken/mutton) in at least 2-3 meal slots. Do NOT make a vegetarian plan for non-vegetarian users. Examples: egg scramble at breakfast, grilled fish at lunch, chicken broth at dinner. If the user chose Non-vegetarian, animal proteins are REQUIRED, not optional.
+3. AYURVEDA: Match foods to dosha balance. Use warm, digestible combinations. Avoid viruddha ahara (incompatible foods). Consider Agni.
+4. DIVERSITY: Rotate grains (rice, millet, quinoa, barley, ragi, amaranth), proteins (dal, eggs, fish, chicken, paneer, chickpeas), cooking styles (porridge, stew, sauté, curry, soup, stir-fry, grilled).
+5. REALISTIC: Meals must be actual home-cooked dishes with clear ingredients — not vague "bowls".
+6. ENERGY: Breakfast=light/moderate, Lunch=heaviest, Dinner=light.
+7. THEME: Internally pick a regional or seasonal theme (South Indian, North Indian, coastal, light detox, protein-rich) WITHOUT stating it. Let it guide the variety.
+8. GOAL ALIGNMENT: Reflect the goal — Detox=lighter/cleansing, Energy=ojas-building, Weight=lighter/spiced, Immunity=turmeric/ashwagandha.
+9. SEASON: Adapt ingredients to the current season.
+
+OUTPUT: Strict JSON only — no markdown fences, no prose, no explanation:
+{
+  "breakfast": [{"name":"...","description":"...","energy":"Light|Moderate|Heavy"}],
+  "mid_morning": [{"name":"...","description":"...","energy":"Light|Moderate|Heavy"}],
+  "lunch": [{"name":"...","description":"...","energy":"Light|Moderate|Heavy|Nourishing"}],
+  "evening": [{"name":"...","description":"...","energy":"Light|Moderate"}],
+  "dinner": [{"name":"...","description":"...","energy":"Light|Moderate"}],
+  "daily_wisdom": "One Ayurvedic insight for today (1 sentence)",
+  "agni_tip": "Specific tip for this dosha's digestive fire (1 sentence)"
+}
+
+Ensure 2-3 items per meal section. No meal repeated across sections.`;
+
+/* ─── Fallback Data — three tiers per dosha ─────────────────────────────── */
+const FALLBACK_VEG = {
   Vata: {
-    dosha: "Vata", element: "Air + Ether",
-    agni_type: "Vishama Agni (Variable digestive fire)",
-    agni_desc: "Vata's digestion is irregular. Regularity and warmth are medicine.",
-    principle: "Warm, unctuous, nourishing, and grounding. Favour sweet, sour, and salty tastes.",
-    meal_timing: { wake:"6:00–7:00 AM", breakfast:"7:30–8:30 AM (NEVER skip)", mid_morning:"10:30 AM (light snack)", lunch:"12:00–1:00 PM (main meal)", evening:"4:00–5:00 PM (herbal tea)", dinner:"6:30–7:30 PM (warm, light)", sleep:"10:00–10:30 PM" },
-    meals: {
-      breakfast: ["Warm spiced oatmeal with ghee, honey, and cardamom","Soft rice porridge (kanji) with sesame oil","Stewed apples or pears with cinnamon and dates","Soaked almonds (8–10) + warm turmeric milk"],
-      mid_morning: ["Warm ginger-cardamom tea with a date","Small banana with almond butter","Warm milk with ashwagandha and honey"],
-      lunch: ["Kitchari (mung dal + basmati rice) with ghee","Warm vegetable soup with root vegetables + roti","Dal tadka with basmati rice + sautéed beets","Stuffed paratha with paneer + raita"],
-      evening: ["Warm ashwagandha milk or CCF tea","Soaked walnuts (4–5) with warm water","Warm herbal soup — thin broth with ginger"],
-      dinner: ["Light mung dal soup with soft roti","Warm vegetable stew","Kitchari with sautéed zucchini or pumpkin"],
-    },
-    weekly_theme: ["Monday: Kitchari day — full day to reset digestion","Tuesday: Root vegetable focus — sweet potato, beet, carrot","Wednesday: Protein day — dal, paneer","Thursday: Grain day — oats, rice, wheat roti","Friday: Sweet taste day — dates, figs, naturally sweet foods","Saturday: Warm soup day — lentil or vegetable broth","Sunday: Lighter day — fruit in morning, kitchari for meals"],
-    spice_blends: [
-      { name:"Vata Churna", recipe:"Cumin, coriander, fennel, ginger, cinnamon, cardamom, hing", use:"Add to any cooked dish. 1 tsp per serving." },
-      { name:"Trikatu", recipe:"Ginger, black pepper, long pepper (equal parts)", use:"½ tsp with warm water before meals." },
-      { name:"CCF Tea", recipe:"Cumin, coriander, fennel seeds (equal parts)", use:"Boil 1 tsp in 2 cups water for 5 min. Drink warm." },
+    breakfast:[
+      {name:"Spiced Ragi Porridge",description:"Finger millet cooked with warm almond milk, jaggery, cardamom & a tsp of ghee",energy:"Moderate"},
+      {name:"Soaked Almond Kheer",description:"Blended soaked almonds with warm milk, saffron, dates & nutmeg",energy:"Moderate"},
     ],
-    favour: { tastes:["Sweet","Sour","Salty"], grains:["Basmati rice","Oats (cooked)","Wheat"], vegetables:["Sweet potato","Beets","Carrots","Zucchini","Pumpkin"], fruits:["Avocado","Bananas","Mangoes","Dates","Figs"], oils:["Sesame oil","Ghee","Olive oil"], drinks:["Warm water","Ginger tea","Almond milk","CCF tea"] },
-    avoid: { tastes:["Bitter (excess)","Pungent (excess)","Astringent"], qualities:["Cold","Dry","Light","Rough"], other:["Raw salads","Popcorn","Carbonated drinks","Skipping meals"] },
-    eating_rules: ["Eat at the SAME time every day — routine is medicine","Always eat warm or room-temperature food","Add ghee or oil to every meal — fats ground Vata","Sit down to eat — never eat standing","Do not eat when anxious or distracted","Finish eating by 7:30 PM"],
-    supplements: [
-      {name:"Ashwagandha", dose:"500mg with warm milk at bedtime", benefit:"Grounds Vata, builds Ojas"},
-      {name:"Shatavari", dose:"1 tsp with warm milk twice daily", benefit:"Nourishes tissues, calms nerves"},
-      {name:"Triphala", dose:"½ tsp with warm water before bed", benefit:"Regulates digestion overnight"},
+    mid_morning:[
+      {name:"CCF Herbal Tea + Fig",description:"Cumin-coriander-fennel decoction with 2 soaked figs",energy:"Light"},
+      {name:"Warm Ashwagandha Milk",description:"Warm whole milk with ashwagandha powder, honey & a pinch of cinnamon",energy:"Light"},
     ],
-    fasting: { recommended:"12–14 hour overnight fast only", best_day:"Sunday — kitchari mono-diet", avoid:"Multi-day fasting or skipping meals" },
-    viruddha_ahara: ["Milk + fruit (creates toxins)","Honey + ghee in equal quantities","Fish + dairy","Cold water after hot food","Fruit + cooked food in same meal"],
-    sample_day: { "06:30":"Warm water with lemon. Tongue scraping.","07:30":"Warm spiced oatmeal with ghee and cardamom.","10:30":"CCF tea + 4 soaked almonds.","12:30":"Kitchari with ghee and roasted root vegetables.","16:00":"Ashwagandha golden milk.","19:00":"Light mung soup or khichdi.","21:30":"Warm milk with nutmeg or triphala." },
-    seasonal_adjustments: { Summer:"Add cooling foods but keep warm. Reduce pungent spices. Stay hydrated.", Autumn:"Increase oils and fats. More sesame oil, more ghee.", Winter:"Eat heartily — soups, stews. Ashwagandha milk nightly.", Spring:"Introduce lighter foods. Reduce oil. Add bitter greens." },
+    lunch:[
+      {name:"Tridoshic Kitchari",description:"Yellow mung dal & basmati rice slow-cooked with ghee, cumin, turmeric & seasonal root vegetables",energy:"Nourishing"},
+      {name:"Paneer & Root Vegetable Curry",description:"Soft paneer cubes in a mild tomato-ginger gravy with sweet potato & carrots, served with roti",energy:"Nourishing"},
+    ],
+    evening:[
+      {name:"Ginger-Date Elixir",description:"Fresh ginger tea with 2 medjool dates & a pinch of black salt",energy:"Light"},
+    ],
+    dinner:[
+      {name:"Moong Soup with Soft Roti",description:"Thin green moong broth with cumin tadka served with 1 soft wheat roti & ghee",energy:"Light"},
+      {name:"Pumpkin Stew",description:"Slow-simmered yellow pumpkin with warming spices, coconut & fresh coriander",energy:"Moderate"},
+    ],
+    daily_wisdom:"Regularity is the greatest medicine for Vata — eat at the same times daily.",
+    agni_tip:"Add a small piece of fresh ginger with rock salt before meals to kindle your variable Vishama Agni.",
   },
   Pitta: {
-    dosha: "Pitta", element: "Fire + Water",
-    agni_type: "Tikshna Agni (Sharp, intense digestive fire)",
-    agni_desc: "Pitta digests powerfully but overheats easily. Cool, moderate, and prevent inflammation.",
-    principle: "Cool, slightly oily, refreshing, and moderate. Favour sweet, bitter, and astringent tastes.",
-    meal_timing: { wake:"5:30–6:30 AM", breakfast:"7:00–8:00 AM (moderate)", mid_morning:"10:00 AM (if intense hunger)", lunch:"12:00–1:00 PM (LARGEST meal)", evening:"4:00–5:00 PM (cooling tea)", dinner:"6:00–7:00 PM (light and early)", sleep:"10:00–11:00 PM" },
-    meals: {
-      breakfast: ["Fresh sweet fruits — grapes, melons, pears (room temperature)","Barley porridge with coconut milk, dates, and cardamom","Coconut-banana smoothie (room temp, not chilled)","Soaked raisins or dates with sweet lassi"],
-      mid_morning: ["Coconut water (room temperature)","A handful of sweet grapes or pomegranate","Rose petal jam (gulkand) with a little warm milk"],
-      lunch: ["Basmati rice + mung dal + ghee + cucumber raita","Steamed vegetables with coconut chutney and roti","Quinoa salad with cucumber, coriander, lime (room temp)","White rice + mild sambar + cooling raita"],
-      evening: ["Coriander-mint herbal tea","Fresh pomegranate juice","Fennel tea — excellent for Pitta","A few sweet grapes or a pear"],
-      dinner: ["Kitchari with cooling vegetables (zucchini, asparagus)","Light dal with steamed rice — small portions","Vegetable soup with coriander and fennel"],
-    },
-    weekly_theme: ["Monday: Mono-fruit morning + kitchari for meals","Tuesday: Green vegetable day — asparagus, zucchini, leafy greens","Wednesday: Cooling grains day — barley, quinoa","Thursday: Dairy day — lassi, paneer, ghee-rich meals","Friday: Legume day — mung beans, chickpeas with coriander","Saturday: Detox kitchari + coconut water + herbal teas","Sunday: Rest day — fruits and lighter meals"],
-    spice_blends: [
-      { name:"Pitta Churna", recipe:"Coriander, fennel, cardamom, turmeric, mint, shatavari", use:"Sprinkle on food. Cools digestion without dulling it." },
-      { name:"CCF Tea (Pitta)", recipe:"Coriander, cardamom, fennel, rose petals (2:1:2:1)", use:"Steep 1 tsp in hot water. Let cool before drinking." },
-      { name:"Gulkand Drink", recipe:"1 tsp rose petal jam in room-temp milk", use:"Take in the afternoon to cool Pitta heat." },
+    breakfast:[
+      {name:"Coconut Barley Porridge",description:"Pearl barley simmered in coconut milk with cardamom, ripe mango chunks & rose petal jam",energy:"Moderate"},
+      {name:"Sweet Fennel Oats",description:"Rolled oats cooked with fennel seeds, dates, coriander & a splash of warm milk",energy:"Light"},
     ],
-    favour: { tastes:["Sweet","Bitter","Astringent"], grains:["Basmati rice","Barley","Oats","Quinoa"], vegetables:["Cucumber","Zucchini","Asparagus","Leafy greens","Broccoli"], fruits:["Grapes","Melons","Pears","Pomegranate","Mangoes (ripe)","Coconut"], oils:["Ghee","Coconut oil","Sunflower oil"], drinks:["Coconut water","Rose water","Fennel tea","Cool water","Aloe vera juice"] },
-    avoid: { tastes:["Pungent (excess)","Sour (excess)","Salty (excess)"], qualities:["Hot","Sharp"], other:["Chili","Garlic (raw)","Vinegar","Alcohol","Eating when angry"] },
-    eating_rules: ["Never eat when angry or stressed — Pitta creates internal fire","Make lunch the LARGEST meal — digestion peaks at noon","Eat in a pleasant, cool, and beautiful environment","Add ghee to food — specifically cooling for Pitta","Eat dinner before 7 PM","Avoid icy water — cool or room temperature is fine"],
-    supplements: [
-      {name:"Amalaki (Amla)", dose:"1 tsp powder with water, morning", benefit:"Cooling, anti-inflammatory, richest Vitamin C source"},
-      {name:"Shatavari", dose:"1 tsp in warm milk at bedtime", benefit:"Cools Pitta heat, nourishes tissues"},
-      {name:"Brahmi", dose:"300mg or ½ tsp with water", benefit:"Cools the fiery mind, reduces perfectionism"},
-      {name:"Aloe Vera Juice", dose:"2 tbsp in water on empty stomach", benefit:"Deeply cooling, heals gut inflammation"},
+    mid_morning:[
+      {name:"Gulkand Rose Lassi",description:"Cooling yogurt drink blended with gulkand (rose petal jam), fennel & a pinch of cardamom",energy:"Light"},
+      {name:"Pomegranate + Coconut Water",description:"Fresh pomegranate arils in chilled-to-room-temp coconut water with mint",energy:"Light"},
     ],
-    fasting: { recommended:"1-day moon fast — fruits only", best_day:"Monday or Ekadashi (11th lunar day)", avoid:"Skipping lunch — Pitta becomes irritable and hypoglycaemic" },
-    viruddha_ahara: ["Honey + hot water (toxic when heated)","Milk + salty foods","Yogurt at night — very heating","Fish + milk","Alcohol + hot spicy food"],
-    sample_day: { "06:00":"Cool water + aloe vera juice or coconut water.","07:30":"Fresh sweet fruits — melon or ripe mango with coconut flakes.","10:00":"Fennel herbal tea. Sweet grapes.","12:30":"Large lunch: basmati rice + mung dal + ghee + cucumber raita.","16:30":"Rose water drink or coriander-mint tea.","18:30":"Light kitchari with zucchini and leafy greens.","21:00":"Warm milk with shatavari or gulkand." },
-    seasonal_adjustments: { Summer:"Maximum cooling. Coconut, rose, aloe, mint. Avoid hot spices entirely.", Autumn:"Slowly add warming foods. Ginger and cumin now fine.", Winter:"More warming foods acceptable. Ghee is your best friend.", Spring:"Bitter greens excellent for Pitta cleansing. Begin with 3-day kitchari cleanse." },
+    lunch:[
+      {name:"Cucumber Quinoa Sambar",description:"Quinoa with mild sambar featuring ash gourd, drumstick & coconut-coriander chutney",energy:"Moderate"},
+      {name:"Basmati Rice + Moong Dal + Raita",description:"Fluffy basmati with ghee-tempered mung dal, cucumber-mint raita & steamed broccoli",energy:"Nourishing"},
+    ],
+    evening:[
+      {name:"Coriander-Mint Cooling Tea",description:"Fresh coriander seeds, mint leaves & fennel steeped for 5 minutes",energy:"Light"},
+    ],
+    dinner:[
+      {name:"Zucchini Kitchari",description:"Mild kitchari with zucchini, asparagus & cooling coriander — small portion",energy:"Light"},
+      {name:"Palak Dal",description:"Masoor dal with palak (spinach), coconut oil tadka & a squeeze of cooling lime",energy:"Light"},
+    ],
+    daily_wisdom:"Make lunch the largest meal — Pitta's sharp Agni peaks at noon and digests best then.",
+    agni_tip:"Sip fennel tea after meals to cool Tikshna Agni and prevent inflammation.",
   },
   Kapha: {
-    dosha: "Kapha", element: "Earth + Water",
-    agni_type: "Manda Agni (Slow, dull digestive fire)",
-    agni_desc: "Kapha's digestion is slow and steady. Stimulate agni before and during meals.",
-    principle: "Light, dry, warm, and stimulating. Favour pungent, bitter, and astringent tastes. Eat less.",
-    meal_timing: { wake:"5:30–6:00 AM (before sunrise — critical)", breakfast:"8:00–9:00 AM (light or skip)", mid_morning:"NO snacking between meals", lunch:"12:00–1:30 PM (main and largest)", evening:"4:30–5:00 PM (stimulating herbal tea ONLY)", dinner:"6:00–7:00 PM (very light — smallest meal)", sleep:"10:00–10:30 PM" },
-    meals: {
-      breakfast: ["SKIP if not hungry — Kapha benefits from 16-hour overnight fast","Light ginger-honey tea with a few berries","Fresh apple or pear (single fruit only)","1 slice dry toast with a smear of honey"],
-      mid_morning: ["Do NOT snack — allow digestion to complete","Stimulating ginger tea only if needed","Warm water with lemon and black pepper"],
-      lunch: ["Spiced lentil soup (masoor dal) with trikatu","Mixed vegetable sabzi with minimal oil + dry roti","Barley or millet with roasted bitter vegetables","Light chickpea curry with warming spices and leafy greens"],
-      evening: ["Trikatu tea (ginger, black pepper, long pepper)","Tulsi (holy basil) tea — decongesting","Warm water with honey and black pepper"],
-      dinner: ["Thin vegetable soup — lightly spiced, no cream","Steamed bitter greens with lemon","Small portion of mung dal — lightest dal","Simple broth with ginger, cumin, and turmeric"],
-    },
-    weekly_theme: ["Monday: Detox day — mung dal only with lots of trikatu tea","Tuesday: Green day — bitter and dark leafy greens, legumes","Wednesday: Grain day — barley or millet only","Thursday: Protein day — legumes and plant-based protein","Friday: Spice day — extra emphasis on trikatu and ginger","Saturday: Light day — single grain, single vegetable, single legume","Sunday: Intermittent fast — 16:8 window; light kitchari afternoon"],
-    spice_blends: [
-      { name:"Kapha Churna", recipe:"Ginger, black pepper, trikatu, cumin, turmeric, mustard seed", use:"Add generously to all cooked foods." },
-      { name:"Trikatu", recipe:"Ginger, black pepper, pippali (equal parts)", use:"¼ tsp with honey 15 min before meals." },
-      { name:"Agni Tea", recipe:"Ginger, turmeric, black pepper, lemon, honey", use:"Boil ginger 10 min. Cool. Add honey + lemon. Drink morning." },
+    breakfast:[
+      {name:"Spiced Pear with Cinnamon",description:"Single poached pear with cinnamon, black pepper & a drizzle of honey",energy:"Light"},
+      {name:"Agni Igniter Tea",description:"Strong ginger-turmeric-black pepper decoction with lemon & honey to kindle Manda Agni",energy:"Light"},
     ],
-    favour: { tastes:["Pungent","Bitter","Astringent"], grains:["Barley","Millet","Buckwheat","Quinoa","Brown rice"], vegetables:["Leafy greens","Bitter gourd","Asparagus","Broccoli","Radish","Garlic"], fruits:["Apples","Pears","Pomegranate","Berries","Cranberries"], oils:["Tiny amounts — mustard oil, sunflower oil","Max 1 tsp per meal"], drinks:["Ginger tea","Trikatu tea","Tulsi tea","Warm water with lemon","Green tea"] },
-    avoid: { tastes:["Sweet (excess)","Sour (excess)","Salty (excess)"], qualities:["Heavy","Cold","Oily","Dense"], other:["Dairy","Fried food","White bread","Ice cream","Bananas","Daytime sleeping"] },
-    eating_rules: ["Eat only when TRULY hungry","Never overeat — stop at 50–75% full","Make lunch the biggest meal; keep dinner very small","Skip breakfast if not hungry — 16-hour fast is ideal","No snacking between meals — 4–5 hrs between meals","Always add generous spices — they are medicine","Use minimal oil — no more than 1 tsp per meal"],
-    supplements: [
-      {name:"Trikatu", dose:"¼ tsp with honey 15 min before meals", benefit:"Kindles digestive fire, clears Ama"},
-      {name:"Guggulu", dose:"1 tablet twice daily with warm water", benefit:"Stimulates metabolism"},
-      {name:"Punarnava", dose:"½ tsp powder with warm water", benefit:"Reduces water retention"},
-      {name:"Ginger (fresh)", dose:"Small piece with salt before meals", benefit:"Stimulates digestive enzymes"},
+    mid_morning:[
+      {name:"Trikatu Water",description:"Warm water with ¼ tsp trikatu (ginger-pepper-pippali) — stimulate digestion, no food",energy:"Light"},
     ],
-    fasting: { recommended:"Weekly 24-hour fast or 16:8 intermittent fasting daily", best_day:"Monday or any day with a light schedule", avoid:"Heavy eating late at night, skipping morning exercise" },
-    viruddha_ahara: ["Honey + hot water (turns toxic)","Milk + banana — creates mucus","Yogurt at night","Cold food after warm food","Sweet dessert immediately after full meal"],
-    sample_day: { "05:30":"Tongue scraping. Dry brushing (Garshana).","06:00":"Vigorous exercise — run or cycle for 30–45 min.","07:30":"Agni tea: ginger, lemon, honey, black pepper.","09:00":"Light breakfast if hungry: apple with cinnamon.","12:30":"Main meal: spiced lentil soup + millet + bitter vegetables.","16:30":"Trikatu herbal tea. No food until dinner.","18:30":"Thin vegetable broth or steamed greens with dal." },
-    seasonal_adjustments: { Spring:"MAXIMUM stimulation. Lightest foods. Warm ginger water. 3-day kitchari cleanse.", Summer:"Maintain lightness. Bitter and astringent. Avoid icy food.", Autumn:"Add some warming. Slight oil increase. Continue exercise.", Winter:"Very active lifestyle critical. Maintain spice emphasis. Avoid all dairy." },
+    lunch:[
+      {name:"Masoor Dal + Millet Bhakri",description:"Spiced red lentil soup with trikatu, served with dry-roasted millet flatbread & bitter gourd sabzi",energy:"Moderate"},
+      {name:"Sprouted Moong Stir-Fry",description:"Dry-sautéed sprouted mung beans with mustard seeds, garlic, green chili & curry leaves over barley",energy:"Moderate"},
+    ],
+    evening:[
+      {name:"Tulsi-Ginger Tea",description:"Holy basil decoction with fresh ginger & black pepper — stimulating, decongestant",energy:"Light"},
+    ],
+    dinner:[
+      {name:"Thin Vegetable Broth",description:"Light stock with radish, bitter gourd, ginger & turmeric — minimal oil, very spiced",energy:"Light"},
+      {name:"Steamed Greens + Mung Soup",description:"Blanched methi (fenugreek) leaves with a small cup of thin mung soup & lemon",energy:"Light"},
+    ],
+    daily_wisdom:"Kapha thrives on movement and stimulation — vigorous morning exercise before eating is medicine.",
+    agni_tip:"Chew a small piece of fresh ginger with rock salt 15 minutes before lunch to activate sluggish Manda Agni.",
   },
 };
 
-/* ─── Main Component ───────────────────────────────────────────────────── */
-export default function DietPlanner() {
+const FALLBACK_VEGAN = {
+  Vata: {
+    breakfast:[
+      {name:"Spiced Ragi Porridge",description:"Finger millet cooked with warm oat milk, jaggery, cardamom & a tsp of coconut oil",energy:"Moderate"},
+      {name:"Chia-Date Warm Bowl",description:"Soaked chia seeds warmed with coconut milk, medjool dates, cinnamon & toasted sesame",energy:"Moderate"},
+    ],
+    mid_morning:[
+      {name:"CCF Herbal Tea + Fig",description:"Cumin-coriander-fennel decoction with 2 soaked figs",energy:"Light"},
+    ],
+    lunch:[
+      {name:"Tridoshic Kitchari",description:"Yellow mung dal & basmati rice slow-cooked with coconut oil, cumin & seasonal root vegetables",energy:"Nourishing"},
+      {name:"Tofu & Root Vegetable Curry",description:"Firm tofu in a mild tomato-ginger gravy with sweet potato & carrots, served with roti",energy:"Nourishing"},
+    ],
+    evening:[
+      {name:"Ginger-Date Elixir",description:"Fresh ginger tea with 2 medjool dates & a pinch of black salt",energy:"Light"},
+    ],
+    dinner:[
+      {name:"Moong Soup with Soft Roti",description:"Thin green moong broth with cumin tadka, 1 soft wheat roti & coconut oil",energy:"Light"},
+      {name:"Pumpkin-Coconut Stew",description:"Slow-simmered yellow pumpkin with warming spices, coconut milk & fresh coriander",energy:"Moderate"},
+    ],
+    daily_wisdom:"Regularity is the greatest medicine for Vata — eat at the same times daily.",
+    agni_tip:"Add a small piece of fresh ginger with rock salt before meals to kindle your variable Vishama Agni.",
+  },
+  Pitta: {
+    breakfast:[
+      {name:"Coconut Barley Porridge",description:"Pearl barley simmered in coconut milk with cardamom, ripe mango & rose petal jam",energy:"Moderate"},
+      {name:"Sweet Fennel Oats",description:"Rolled oats cooked with fennel seeds, dates, coriander & coconut milk",energy:"Light"},
+    ],
+    mid_morning:[
+      {name:"Coconut Water + Pomegranate",description:"Room-temperature coconut water with fresh pomegranate arils and mint leaves",energy:"Light"},
+    ],
+    lunch:[
+      {name:"Tofu Quinoa Sambar",description:"Quinoa with mild sambar featuring tofu, ash gourd & coconut-coriander chutney",energy:"Moderate"},
+      {name:"Basmati + Moong Dal",description:"Fluffy basmati with coconut-oil-tempered mung dal, cucumber salad & steamed broccoli",energy:"Nourishing"},
+    ],
+    evening:[
+      {name:"Coriander-Mint Cooling Tea",description:"Coriander seeds, mint & fennel steeped 5 minutes",energy:"Light"},
+    ],
+    dinner:[
+      {name:"Zucchini Kitchari",description:"Mild kitchari with zucchini, asparagus & cooling coriander — small portion",energy:"Light"},
+      {name:"Palak Tofu Dal",description:"Masoor dal with palak (spinach), coconut oil tadka, cubed tofu & lime",energy:"Light"},
+    ],
+    daily_wisdom:"Make lunch the largest meal — Pitta's sharp Agni peaks at noon.",
+    agni_tip:"Sip fennel tea after meals to cool Tikshna Agni and prevent inflammation.",
+  },
+  Kapha: {
+    breakfast:[
+      {name:"Spiced Apple",description:"Warm stewed apple with cinnamon, black pepper & a drizzle of raw honey",energy:"Light"},
+    ],
+    mid_morning:[
+      {name:"Trikatu Water",description:"Warm water with ¼ tsp trikatu — stimulate digestion, no food",energy:"Light"},
+    ],
+    lunch:[
+      {name:"Masoor Dal + Millet Bhakri",description:"Spiced red lentil soup with trikatu, millet flatbread & bitter gourd sabzi",energy:"Moderate"},
+      {name:"Chickpea Stir-Fry",description:"Dry-sautéed chickpeas with mustard seeds, garlic, green chili & curry leaves over barley",energy:"Moderate"},
+    ],
+    evening:[
+      {name:"Tulsi-Ginger Tea",description:"Holy basil with fresh ginger & black pepper — decongestant, stimulating",energy:"Light"},
+    ],
+    dinner:[
+      {name:"Spiced Vegetable Broth",description:"Radish, bitter gourd, ginger & turmeric broth — minimal coconut oil",energy:"Light"},
+    ],
+    daily_wisdom:"Kapha thrives on movement — vigorous morning exercise before eating is medicine.",
+    agni_tip:"Chew fresh ginger with rock salt 15 minutes before lunch to activate sluggish Manda Agni.",
+  },
+};
+
+const FALLBACK_NONVEG = {
+  Vata: {
+    breakfast:[
+      {name:"Spiced Scrambled Eggs with Roti",description:"2 eggs scrambled with ghee, cumin, fresh ginger, spinach & a pinch of turmeric — served with soft wheat roti",energy:"Moderate"},
+      {name:"Chicken Bone Broth Congee",description:"Slow-cooked rice porridge in chicken bone broth with ginger, sesame oil & spring onion — deeply grounding for Vata",energy:"Moderate"},
+    ],
+    mid_morning:[
+      {name:"Warm Ashwagandha Milk",description:"Warm whole milk with ashwagandha powder, honey & a pinch of cinnamon",energy:"Light"},
+      {name:"Boiled Egg + Dates",description:"1 soft-boiled egg with 2 medjool dates and CCF herbal tea",energy:"Light"},
+    ],
+    lunch:[
+      {name:"Spiced Fish Curry with Basmati Rice",description:"Fresh white fish (rohu or pomfret) in a warming tomato-ginger-cumin gravy, served with fluffy basmati rice & ghee",energy:"Nourishing"},
+      {name:"Chicken Khichdi",description:"Shredded poached chicken stirred into mung dal & basmati kitchari with trikatu spice blend",energy:"Nourishing"},
+    ],
+    evening:[
+      {name:"Ginger-Bone Broth Tea",description:"Thin chicken or bone broth with fresh ginger, rock salt & a squeeze of lemon — warming tonic",energy:"Light"},
+    ],
+    dinner:[
+      {name:"Light Fish Soup",description:"Delicate white fish pieces simmered in a cumin-coriander broth with zucchini & soft wheat noodles",energy:"Light"},
+      {name:"Egg Drop Dal",description:"Thin moong dal soup with a swirled poached egg, cumin tadka & coriander — light and nourishing",energy:"Moderate"},
+    ],
+    daily_wisdom:"Regularity is the greatest medicine for Vata — eat at the same times daily.",
+    agni_tip:"Add a small piece of fresh ginger with rock salt before meals to kindle your variable Vishama Agni.",
+  },
+  Pitta: {
+    breakfast:[
+      {name:"Coconut Egg White Omelette",description:"2 egg whites cooked in coconut oil with zucchini, coriander leaves & mild spices — cooling protein start",energy:"Moderate"},
+      {name:"Poached Egg on Barley Porridge",description:"Soft poached egg set atop creamy barley porridge with fennel, coconut milk & fresh herbs",energy:"Moderate"},
+    ],
+    mid_morning:[
+      {name:"Cooling Coconut Water",description:"Room-temperature coconut water with fresh pomegranate arils and mint",energy:"Light"},
+    ],
+    lunch:[
+      {name:"Steamed Fish with Basmati & Raita",description:"Lightly steamed pomfret or tilapia with coriander-lime marinade, basmati rice & cooling cucumber-mint raita",energy:"Nourishing"},
+      {name:"Chicken Quinoa Bowl",description:"Poached chicken breast shredded over quinoa with cooling cucumber, coriander chutney & a drizzle of ghee",energy:"Nourishing"},
+    ],
+    evening:[
+      {name:"Fennel-Mint Herbal Tea",description:"Cooling fennel seeds, fresh mint & rose petals steeped — excellent Pitta pacifier",energy:"Light"},
+    ],
+    dinner:[
+      {name:"Light Chicken Broth Soup",description:"Clear chicken broth with asparagus, zucchini & coriander — mild and cooling",energy:"Light"},
+      {name:"Egg & Palak Curry",description:"Soft-boiled eggs in a mild palak (spinach) gravy with coconut oil & cooling spices",energy:"Light"},
+    ],
+    daily_wisdom:"Make lunch the largest meal — Pitta's Agni peaks at noon and handles protein best then.",
+    agni_tip:"Sip fennel tea after meals to cool Tikshna Agni and prevent inflammation.",
+  },
+  Kapha: {
+    breakfast:[
+      {name:"Spiced Egg White Scramble",description:"3 egg whites scrambled with trikatu spice, mustard seeds, curry leaves & bitter greens — dry, no butter",energy:"Light"},
+      {name:"Agni Tea + Hard-Boiled Egg",description:"Strong ginger-pepper-turmeric tea with 1 hard-boiled egg sprinkled with black salt & cumin",energy:"Light"},
+    ],
+    mid_morning:[
+      {name:"Trikatu Water",description:"Warm water with ¼ tsp trikatu — stimulate digestion, no food",energy:"Light"},
+    ],
+    lunch:[
+      {name:"Grilled Chicken with Millet & Bitter Greens",description:"Dry-spiced grilled chicken breast with trikatu, served over millet with sautéed methi (fenugreek) & radish",energy:"Moderate"},
+      {name:"Spiced Fish & Barley",description:"Grilled mackerel or sardine with warming spices, barley grain & a side of roasted bitter gourd",energy:"Moderate"},
+    ],
+    evening:[
+      {name:"Tulsi-Ginger Tea",description:"Holy basil with fresh ginger & black pepper — decongestant and stimulating",energy:"Light"},
+    ],
+    dinner:[
+      {name:"Chicken & Vegetable Clear Broth",description:"Light chicken broth with radish, bitter gourd, ginger & turmeric — minimal oil, highly spiced",energy:"Light"},
+      {name:"Egg Drop Vegetable Soup",description:"Thin spiced vegetable soup with a swirled egg, mustard seeds & methi leaves",energy:"Light"},
+    ],
+    daily_wisdom:"Kapha thrives on stimulation — vigorous morning exercise before eating is essential medicine.",
+    agni_tip:"Chew fresh ginger with rock salt 15 minutes before lunch to activate sluggish Manda Agni.",
+  },
+};
+
+const LOCAL_WISDOM = {
+  Vata:  { meal_timing:{"06:30":"Warm water with lemon. Tongue scraping.","07:30":"Nourishing warm breakfast.","10:30":"CCF tea + soaked nuts.","12:30":"Main meal — kitchari or dal-rice.","16:00":"Ashwagandha golden milk.","19:00":"Light soup or khichdi.","21:30":"Warm milk with nutmeg."}, spice_blends:[{name:"Vata Churna",recipe:"Cumin, coriander, fennel, ginger, cinnamon, cardamom, hing",use:"1 tsp in any cooked dish"},{name:"CCF Tea",recipe:"Equal parts cumin, coriander, fennel seeds",use:"Boil 1 tsp in 2 cups water, drink warm"},{name:"Trikatu",recipe:"Equal parts ginger, black pepper, long pepper",use:"½ tsp with warm water before meals"}], eating_rules:["Eat at the SAME time daily — regularity is medicine","Always eat warm or room-temperature food","Add ghee or sesame oil to every meal","Sit down to eat — never eat standing","Finish eating by 7:30 PM","Do not eat while anxious or distracted"], avoid:{tastes:["Bitter excess","Pungent excess","Astringent excess"],qualities:["Cold","Dry","Light","Rough"],other:["Skipping meals","Raw salads","Cold water","Carbonated drinks"]}, supplements:[{name:"Ashwagandha",dose:"500mg with warm milk at bedtime",benefit:"Grounds Vata, builds Ojas"},{name:"Shatavari",dose:"1 tsp with warm milk twice daily",benefit:"Nourishes tissues, calms nerves"},{name:"Triphala",dose:"½ tsp with warm water before bed",benefit:"Regulates digestion overnight"}] },
+  Pitta: { meal_timing:{"06:00":"Cool water + aloe vera juice.","07:30":"Fresh sweet fruit or barley porridge.","10:00":"Fennel tea. Sweet grapes.","12:30":"Large lunch — main meal.","16:30":"Rose water drink or coriander-mint tea.","18:30":"Light kitchari with cooling vegetables.","21:00":"Warm milk with shatavari or gulkand."}, spice_blends:[{name:"Pitta Churna",recipe:"Coriander, fennel, cardamom, turmeric, mint",use:"Sprinkle on food; cools digestion"},{name:"Cooling CCF",recipe:"Coriander, cardamom, fennel, rose petals (2:1:2:1)",use:"Steep, let cool before drinking"},{name:"Gulkand Drink",recipe:"1 tsp rose petal jam in room-temp milk",use:"Afternoon; deeply cooling for Pitta"}], eating_rules:["Never eat when angry — Pitta creates internal fire","Make lunch the LARGEST meal","Eat in a cool, pleasant environment","Add ghee — cooling for Pitta","Eat dinner before 7 PM","No icy water — cool or room-temp only"], avoid:{tastes:["Pungent excess","Sour excess","Salty excess"],qualities:["Hot","Sharp","Fermented"],other:["Chili","Raw garlic","Vinegar","Alcohol","Eating when angry"]}, supplements:[{name:"Amalaki (Amla)",dose:"1 tsp powder with water, morning",benefit:"Cooling, anti-inflammatory, richest Vitamin C"},{name:"Shatavari",dose:"1 tsp in warm milk at bedtime",benefit:"Cools Pitta heat, nourishes tissues"},{name:"Brahmi",dose:"300mg or ½ tsp with water",benefit:"Cools the fiery mind, reduces perfectionism"}] },
+  Kapha: { meal_timing:{"05:30":"Tongue scraping. Dry brushing.","06:00":"Vigorous exercise — 30–45 min.","07:30":"Agni tea: ginger, lemon, honey, pepper.","09:00":"Light breakfast only if hungry.","12:30":"Main meal: spiced legumes + bitter veg.","16:30":"Trikatu herbal tea. No food till dinner.","18:30":"Thin vegetable broth or steamed greens."}, spice_blends:[{name:"Kapha Churna",recipe:"Ginger, black pepper, trikatu, cumin, turmeric, mustard seed",use:"Add generously to all cooked foods"},{name:"Trikatu Honey",recipe:"Equal ginger, black pepper, pippali mixed with raw honey",use:"¼ tsp with honey 15 min before meals"},{name:"Agni Tea",recipe:"Ginger, turmeric, black pepper, lemon, honey",use:"Boil ginger 10 min, cool, add honey+lemon"}], eating_rules:["Eat only when TRULY hungry","Never overeat — stop at 50–75% full","Largest meal at noon; dinner very small","Skip breakfast if not hungry — 16h fast ideal","No snacking between meals","Always add generous warming spices","Use minimal oil — max 1 tsp per meal"], avoid:{tastes:["Sweet excess","Sour excess","Salty excess"],qualities:["Heavy","Cold","Oily","Dense"],other:["Dairy","Fried food","White bread","Daytime sleeping","Bananas","Ice cream"]}, supplements:[{name:"Trikatu",dose:"¼ tsp with honey 15 min before meals",benefit:"Kindles digestive fire, clears Ama"},{name:"Guggulu",dose:"1 tablet twice daily with warm water",benefit:"Stimulates metabolism, reduces accumulation"},{name:"Punarnava",dose:"½ tsp powder with warm water",benefit:"Reduces water retention, supports kidneys"}] },
+};
+
+/* ─── Component ──────────────────────────────────────────────────────────── */
+export default function AyurvedicPlanner() {
   const [dosha, setDosha]       = useState("Vata");
   const [goal, setGoal]         = useState("Balance");
   const [lifestyle, setLifestyle] = useState("Vegetarian");
   const [season, setSeason]     = useState(() => {
-    const m = new Date().getMonth() + 1;
-    if (m <= 2 || m === 12) return "Winter";
-    if (m <= 5)  return "Spring";
-    if (m <= 8)  return "Summer";
+    const m = new Date().getMonth()+1;
+    if (m<=2||m===12) return "Winter";
+    if (m<=5) return "Spring";
+    if (m<=8) return "Summer";
     return "Autumn";
   });
   const [plan, setPlan]         = useState(null);
   const [loading, setLoading]   = useState(false);
   const [activeTab, setActiveTab] = useState("meals");
   const [activeMeal, setActiveMeal] = useState("breakfast");
-  const [generated, setGenerated] = useState(false);
+  const [error, setError]       = useState(null);
+  const [aiPowered, setAiPowered] = useState(false);
+  const containerRef = useRef(null);
 
-  const theme = DOSHA_THEME[dosha];
+  const theme = DOSHA[dosha];
 
-  const handleGenerate = async () => {
+  const generatePlan = async () => {
     setLoading(true);
-    setGenerated(false);
+    setError(null);
+    setAiPowered(false);
+
+    const nonVegReminder = lifestyle === "Non-vegetarian"
+      ? "\n\nIMPORTANT: This user is NON-VEGETARIAN. You MUST include eggs, fish, or chicken/mutton in at least 2-3 meal slots. Do NOT generate a vegetarian plan. Animal protein is required."
+      : lifestyle === "Vegan"
+      ? "\n\nIMPORTANT: This user is VEGAN. Use ZERO dairy, ghee, or animal products. Use coconut oil, tofu, and plant milks only."
+      : "";
+
+    const userPrompt = `Generate a unique daily meal plan for:
+- Dosha: ${dosha}
+- Goal: ${goal}
+- Lifestyle: ${lifestyle}
+- Season: ${season}
+${nonVegReminder}
+
+Be creative and different from typical plans. Ensure variety in grains, proteins, and cooking styles.`;
+
     try {
-      const res = await fetch("http://127.0.0.1:5050/diet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dosha, goal, lifestyle, season }),
+      const res = await fetch("http://localhost:5050/diet", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:1000,
+          system: SYSTEM_PROMPT,
+          messages:[{role:"user",content:userPrompt}]
+        })
       });
+      if (!res.ok) throw new Error("API error");
       const data = await res.json();
-      if (res.ok && data.meals) {
-        setPlan(data);
-      } else throw new Error();
+      const raw = data.content?.map(b=>b.type==="text"?b.text:"").join("");
+      const cleaned = raw.replace(/```json|```/g,"").trim();
+      const meals = JSON.parse(cleaned);
+      const local = LOCAL_WISDOM[dosha];
+      setPlan({ meals, dosha, goal, lifestyle, season, ...local });
+      setAiPowered(true);
     } catch {
-      // Use local fallback
-      const local = JSON.parse(JSON.stringify(LOCAL_PLANS[dosha]));
-      local.goal = goal;
-      local.lifestyle = lifestyle;
-      local.current_season = season;
-      local.seasonal_note = local.seasonal_adjustments?.[season] || "";
-      if (lifestyle === "Vegan") {
-        const veganFilter = s => !/(paneer|milk|ghee|egg|fish|meat|butter|yogurt|lassi|dairy|cream)/i.test(s);
-        Object.keys(local.meals).forEach(k => { local.meals[k] = local.meals[k].filter(veganFilter); });
-        local.lifestyle_note = "Dairy items filtered. Use coconut oil in place of ghee, plant milks in place of dairy.";
-      }
-      setPlan(local);
+      const fbMap = {
+        "Vegan": FALLBACK_VEGAN,
+        "Non-vegetarian": FALLBACK_NONVEG,
+        "Vegetarian": FALLBACK_VEG,
+      };
+      const fb = fbMap[lifestyle] || FALLBACK_VEG;
+      const local = LOCAL_WISDOM[dosha];
+      const meals = JSON.parse(JSON.stringify(fb[dosha]));
+      setPlan({ meals, dosha, goal, lifestyle, season, ...local });
+      setAiPowered(false);
     } finally {
       setLoading(false);
-      setGenerated(true);
       setActiveTab("meals");
+      setActiveMeal("breakfast");
     }
   };
 
-  const TABS = [
-    { id: "meals",     label: "Meal Plan",     icon: "🍽️" },
-    { id: "timing",    label: "Daily Timing",  icon: "⏰" },
-    { id: "weekly",    label: "Weekly Plan",   icon: "📅" },
-    { id: "spices",    label: "Spice Blends",  icon: "🌶️" },
-    { id: "rules",     label: "Eating Rules",  icon: "📜" },
-    { id: "incompatible", label: "Foods to Avoid", icon: "⚠️" },
-    { id: "supplements", label: "Supplements",icon: "🌱" },
-    { id: "fasting",   label: "Fasting",       icon: "🕐" },
-    { id: "day",       label: "Sample Day",    icon: "📖" },
-  ];
+  const mealItems = plan?.meals?.[activeMeal] || [];
 
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Nunito:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap');
 
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
-        .dp-root {
-          min-height: 100vh;
-          background: #FDFAF5;
-          font-family: 'Nunito', sans-serif;
-          display: flex;
-          flex-direction: column;
-          position: relative;
-        }
-        .dp-root::before {
-          content: '';
-          position: fixed;
-          inset: 0;
-          background:
-            radial-gradient(ellipse 65% 50% at 5% 5%, rgba(139,92,42,0.07) 0%, transparent 55%),
-            radial-gradient(ellipse 55% 40% at 95% 95%, rgba(92,46,10,0.05) 0%, transparent 50%);
-          pointer-events: none;
-          z-index: 0;
+        .ap-root{
+          min-height:100vh;
+          background:#FDFAF6;
+          font-family:'DM Sans',sans-serif;
+          display:flex;flex-direction:column;
         }
 
-        /* Navbar */
-        .nav {
-          position: sticky; top: 0; z-index: 50;
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 0 2.5rem; height: 62px;
-          background: rgba(253,250,245,0.95);
-          backdrop-filter: blur(16px);
-          border-bottom: 1px solid #E8D9C5;
-          box-shadow: 0 1px 20px rgba(44,24,16,0.05);
-          flex-shrink: 0;
+        /* ── Nav ── */
+        .ap-nav{
+          position:sticky;top:0;z-index:100;
+          display:flex;align-items:center;justify-content:space-between;
+          padding:0 2rem;height:58px;
+          background:rgba(253,250,246,0.96);
+          backdrop-filter:blur(20px);
+          border-bottom:1px solid #EDE0CF;
         }
-        .nav-brand {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 17px; font-weight: 600; color: #2C1810;
-          display: flex; align-items: center; gap: 9px;
+        .ap-brand{
+          font-family:'Playfair Display',serif;
+          font-size:16px;font-weight:600;color:#2C1608;
+          display:flex;align-items:center;gap:10px;letter-spacing:0.2px;
         }
-        .nav-icon {
-          width: 32px; height: 32px;
-          background: linear-gradient(135deg,#5C2E0A,#8B5C2A);
-          border-radius: 9px;
-          display: flex; align-items: center; justify-content: center; font-size: 16px;
+        .ap-logo{
+          width:34px;height:34px;border-radius:10px;
+          display:flex;align-items:center;justify-content:center;
+          font-size:18px;
+          background:linear-gradient(135deg,#5C2E0A,#A0621A);
+        }
+        .ap-badge{
+          font-size:10px;font-weight:600;letter-spacing:0.5px;
+          padding:3px 9px;border-radius:99px;
+          background:#E8F4E8;color:#2E7D32;
+          border:1px solid #A5D6A7;
+        }
+        .ap-badge.fallback{background:#FFF8E1;color:#F57F17;border-color:#FFD54F;}
+
+        /* ── Layout ── */
+        .ap-layout{
+          flex:1;display:flex;
         }
 
-        /* Layout */
-        .page {
-          flex: 1; display: flex; gap: 0;
-          position: relative; z-index: 1;
-          min-height: 0;
+        /* ── Sidebar ── */
+        .ap-sidebar{
+          width:300px;flex-shrink:0;
+          border-right:1px solid #EDE0CF;
+          padding:1.5rem;
+          overflow-y:auto;
+          background:#FDFAF6;
+        }
+        .sidebar-section{margin-bottom:1.6rem;}
+        .sidebar-label{
+          font-size:10px;font-weight:600;letter-spacing:1.2px;
+          text-transform:uppercase;color:#A08060;
+          margin-bottom:0.7rem;
         }
 
-        /* ── Config panel (left) ──────────────────────────── */
-        .config-panel {
-          width: 320px;
-          flex-shrink: 0;
-          padding: 1.8rem 1.6rem;
-          border-right: 1px solid #E8D9C5;
-          overflow-y: auto;
-          background: #FFF;
-          display: flex;
-          flex-direction: column;
-          gap: 1.4rem;
+        /* Dosha pills */
+        .dosha-grid{display:flex;flex-direction:column;gap:6px;}
+        .dosha-btn{
+          display:flex;align-items:center;gap:10px;
+          padding:10px 13px;border-radius:12px;
+          border:1.5px solid transparent;
+          cursor:pointer;transition:all 0.18s;
+          background:#FFF;border-color:#EDE0CF;
         }
-        .config-section-title {
-          font-size: 10px;
-          font-weight: 800;
-          letter-spacing: 1.8px;
-          text-transform: uppercase;
-          color: #B0967A;
-          margin-bottom: 10px;
-          display: flex;
-          align-items: center;
-          gap: 7px;
+        .dosha-btn:hover{transform:translateX(2px);}
+        .dosha-btn.active{border-width:2px;}
+        .dosha-sym{font-size:18px;width:28px;text-align:center;}
+        .dosha-info{flex:1;}
+        .dosha-name{font-size:13px;font-weight:600;color:#2C1608;}
+        .dosha-el{font-size:11px;color:#907050;margin-top:1px;}
+        .dosha-agni{
+          font-size:10px;font-weight:600;
+          padding:2px 7px;border-radius:99px;
+          background:rgba(0,0,0,0.06);color:#6B4A2A;
         }
 
-        /* Dosha selector */
-        .dosha-selector {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
+        /* Generic pill grid */
+        .pill-grid{display:flex;flex-wrap:wrap;gap:6px;}
+        .pill-btn{
+          padding:6px 12px;border-radius:99px;
+          border:1.5px solid #EDE0CF;
+          background:#FFF;
+          font-size:12px;font-weight:500;color:#5A3A1A;
+          cursor:pointer;transition:all 0.15s;
+          display:flex;align-items:center;gap:5px;
         }
-        .dosha-btn {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 12px 14px;
-          border: 1.5px solid #E8D9C5;
-          border-radius: 13px;
-          background: #FDFAF5;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          text-align: left;
-        }
-        .dosha-btn:hover { border-color: #C4A882; background: #F5EFE6; }
-        .dosha-btn.active { border-width: 2px; }
-        .dosha-btn-sym { font-size: 22px; flex-shrink: 0; }
-        .dosha-btn-name {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 17px; font-weight: 500; color: #2C1810;
-        }
-        .dosha-btn-el { font-size: 11px; color: #A0722A; margin-top: 1px; }
-        .dosha-btn-check {
-          margin-left: auto;
-          width: 20px; height: 20px;
-          border-radius: 50%;
-          border: 2px solid #C4A882;
-          display: flex; align-items: center; justify-content: center;
-          flex-shrink: 0;
-          font-size: 10px;
-          transition: all 0.2s;
-        }
-
-        /* Grid selectors */
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; }
-        .sel-btn {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 4px;
-          padding: 10px 6px;
-          border: 1.5px solid #E8D9C5;
-          border-radius: 11px;
-          background: #FDFAF5;
-          cursor: pointer;
-          transition: all 0.18s;
-          text-align: center;
-        }
-        .sel-btn:hover { border-color: #C4A882; background: #F5EFE6; }
-        .sel-btn.active { border-width: 2px; }
-        .sel-btn-icon { font-size: 18px; }
-        .sel-btn-label { font-size: 11px; font-weight: 700; color: #4A2C14; }
-        .sel-btn-desc { font-size: 9px; color: #A0722A; line-height: 1.3; }
+        .pill-btn:hover{border-color:#C4A882;}
+        .pill-btn.active{border-width:2px;font-weight:600;}
 
         /* Generate button */
-        .gen-btn {
-          width: 100%;
-          padding: 14px;
-          background: linear-gradient(135deg,#5C2E0A,#8B5C2A);
-          color: #FDF8F0;
-          font-family: 'Nunito', sans-serif;
-          font-size: 14px; font-weight: 800;
-          border: none; border-radius: 13px;
-          cursor: pointer;
-          letter-spacing: 0.4px;
-          transition: transform 0.18s, box-shadow 0.18s;
-          box-shadow: 0 6px 22px rgba(92,46,10,0.28);
-          display: flex; align-items: center; justify-content: center; gap: 8px;
+        .gen-btn{
+          width:100%;padding:13px;
+          border-radius:12px;border:none;
+          font-family:'DM Sans',sans-serif;
+          font-size:14px;font-weight:600;
+          cursor:pointer;
+          transition:all 0.2s;
+          display:flex;align-items:center;justify-content:center;gap:8px;
+          letter-spacing:0.1px;
+          color:#FFF;
+          margin-top:0.5rem;
         }
-        .gen-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(92,46,10,0.35); }
-        .gen-btn:active { transform: scale(0.98); }
-        .gen-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .gen-btn:hover{transform:translateY(-1px);filter:brightness(1.08);}
+        .gen-btn:active{transform:translateY(0px);}
+        .gen-btn:disabled{opacity:0.6;cursor:not-allowed;transform:none;}
 
-        /* ── Results panel (right) ───────────────────────── */
-        .results-panel {
-          flex: 1;
-          overflow-y: auto;
-          display: flex;
-          flex-direction: column;
+        /* Spinner */
+        @keyframes spin{to{transform:rotate(360deg)}}
+        .spinner{
+          width:16px;height:16px;border-radius:50%;
+          border:2px solid rgba(255,255,255,0.3);
+          border-top-color:#FFF;
+          animation:spin 0.7s linear infinite;
+          flex-shrink:0;
         }
+
+        /* ── Main Panel ── */
+        .ap-main{flex:1;overflow:auto;display:flex;flex-direction:column;}
 
         /* Empty state */
-        .empty-state {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          text-align: center;
-          padding: 3rem 2rem;
-          animation: fadeIn 0.5s ease;
+        .ap-empty{
+          flex:1;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;
+          gap:1rem;padding:3rem;
+          color:#B09070;text-align:center;
         }
-        @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
-        .empty-orb {
-          width: 80px; height: 80px;
-          border-radius: 50%;
-          background: #F5EFE6;
-          border: 2px solid #E8D9C5;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 36px;
-          margin: 0 auto 1.5rem;
+        .empty-icon{font-size:48px;margin-bottom:0.5rem;}
+        .empty-title{
+          font-family:'Playfair Display',serif;
+          font-size:22px;color:#3D2010;margin-bottom:0.3rem;
         }
-        .empty-title {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 24px; font-weight: 500; color: #2C1810;
-          margin-bottom: 8px;
-        }
-        .empty-sub { font-size: 13px; color: #A0722A; max-width: 320px; line-height: 1.6; }
+        .empty-sub{font-size:14px;line-height:1.6;max-width:340px;}
 
-        /* Plan hero */
-        .plan-hero {
-          padding: 2rem 2.5rem 1.6rem;
-          position: relative;
-          overflow: hidden;
-          flex-shrink: 0;
+        /* Hero */
+        .ap-hero{
+          padding:1.8rem 2rem 1.4rem;
+          color:#FFF;
+          position:relative;overflow:hidden;
         }
-        .plan-hero::after {
-          content: attr(data-sym);
-          position: absolute;
-          right: -20px; bottom: -20px;
-          font-size: 180px;
-          opacity: 0.05;
-          line-height: 1;
-          pointer-events: none;
+        .ap-hero::before{
+          content:'';position:absolute;
+          inset:0;
+          background:radial-gradient(ellipse 80% 60% at 80% 50%,rgba(255,255,255,0.08) 0%,transparent 60%);
+          pointer-events:none;
         }
-        .plan-hero-eyebrow {
-          font-size: 9px; font-weight: 800;
-          letter-spacing: 2.5px;
-          text-transform: uppercase;
-          color: rgba(255,255,255,0.6);
-          margin-bottom: 8px;
-          display: block;
+        .hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;}
+        .hero-left{}
+        .hero-sym{font-size:36px;margin-bottom:0.4rem;}
+        .hero-title{
+          font-family:'Playfair Display',serif;
+          font-size:24px;font-weight:700;
+          line-height:1.2;margin-bottom:4px;
         }
-        .plan-hero-title {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 36px; font-weight: 600;
-          color: #FFF;
-          line-height: 1.1; letter-spacing: -0.5px;
-          margin-bottom: 5px;
+        .hero-sub{font-size:13px;opacity:0.75;font-style:italic;}
+        .hero-tags{display:flex;gap:7px;flex-wrap:wrap;margin-top:1rem;}
+        .hero-tag{
+          padding:4px 12px;border-radius:99px;
+          background:rgba(255,255,255,0.15);
+          border:1px solid rgba(255,255,255,0.25);
+          font-size:11px;font-weight:600;
+          letter-spacing:0.3px;
         }
-        .plan-hero-sub {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 15px; font-style: italic;
-          color: rgba(255,255,255,0.7);
-          margin-bottom: 1.2rem;
+        .hero-agni{
+          margin-top:1.1rem;padding:10px 14px;
+          background:rgba(0,0,0,0.18);border-radius:10px;
+          font-size:12px;opacity:0.85;line-height:1.6;
         }
-        .hero-tags {
-          display: flex; gap: 8px; flex-wrap: wrap;
+        .hero-ai-note{
+          margin-top:0.8rem;padding:8px 12px;
+          background:rgba(255,255,255,0.12);border-radius:8px;
+          font-size:11.5px;opacity:0.9;
+          border:1px solid rgba(255,255,255,0.2);
+          display:flex;gap:6px;align-items:center;
         }
-        .hero-tag {
-          padding: 4px 12px;
-          background: rgba(255,255,255,0.15);
-          border: 1px solid rgba(255,255,255,0.25);
-          border-radius: 99px;
-          font-size: 11px; font-weight: 700;
-          color: rgba(255,255,255,0.85);
-        }
-        .hero-agni {
-          margin-top: 1rem;
-          padding: 10px 14px;
-          background: rgba(0,0,0,0.15);
-          border-radius: 10px;
-          font-size: 12px;
-          color: rgba(255,255,255,0.75);
-          line-height: 1.55;
-        }
-        .hero-agni strong { color: #FFF; }
 
-        /* Seasonal warning */
-        .seasonal-banner {
-          margin: 0 2rem 0;
-          padding: 10px 14px;
-          background: rgba(212,168,67,0.12);
-          border: 1px solid rgba(212,168,67,0.35);
-          border-radius: 10px;
-          font-size: 12.5px; color: #7A5A10;
-          display: flex; gap: 8px; align-items: flex-start;
-          line-height: 1.55;
+        /* Seasonal banner */
+        .seasonal{
+          margin:0.8rem 2rem 0;
+          padding:10px 14px;
+          background:rgba(212,168,67,0.1);
+          border:1px solid rgba(212,168,67,0.3);
+          border-radius:10px;
+          font-size:12.5px;color:#7A5A10;
+          display:flex;gap:8px;line-height:1.6;
+        }
+
+        /* Wisdom bar */
+        .wisdom-bar{
+          margin:0.8rem 2rem 0;
+          padding:10px 14px;
+          border-radius:10px;
+          font-size:12.5px;line-height:1.6;
+          display:flex;gap:8px;align-items:flex-start;
         }
 
         /* Tabs */
-        .tabs-bar {
-          border-bottom: 1px solid #E8D9C5;
-          display: flex;
-          overflow-x: auto;
-          scrollbar-width: none;
-          padding: 0 1.5rem;
-          gap: 2px;
-          flex-shrink: 0;
+        .ap-tabs{
+          border-bottom:1px solid #EDE0CF;
+          display:flex;overflow-x:auto;
+          scrollbar-width:none;
+          padding:0 1.5rem;gap:2px;
+          flex-shrink:0;margin-top:0.8rem;
         }
-        .tabs-bar::-webkit-scrollbar { display: none; }
-        .tab-btn {
-          padding: 0.9rem 12px;
-          border: none; background: transparent;
-          font-family: 'Nunito', sans-serif;
-          font-size: 11.5px; font-weight: 700;
-          color: #B0967A;
-          cursor: pointer;
-          border-bottom: 2.5px solid transparent;
-          white-space: nowrap;
-          transition: all 0.18s;
-          letter-spacing: 0.2px;
-          display: flex; align-items: center; gap: 5px;
+        .ap-tabs::-webkit-scrollbar{display:none;}
+        .ap-tab{
+          padding:0.85rem 12px;
+          border:none;background:transparent;
+          font-family:'DM Sans',sans-serif;
+          font-size:11.5px;font-weight:600;
+          color:#B09070;cursor:pointer;
+          border-bottom:2.5px solid transparent;
+          white-space:nowrap;
+          transition:all 0.15s;
+          display:flex;align-items:center;gap:5px;
+          letter-spacing:0.2px;
         }
-        .tab-btn:hover { color: #6B4A2A; }
-        .tab-btn.active { color: #5C2E0A; border-bottom-color: #5C2E0A; }
+        .ap-tab:hover{color:#6B4A2A;}
+        .ap-tab.active{color:#3D1A0A;border-bottom-color:#3D1A0A;}
 
-        /* Tab content */
-        .tab-content {
-          padding: 1.6rem 2.5rem 3rem;
-          flex: 1;
-          animation: tabIn 0.3s ease;
-        }
-        @keyframes tabIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+        /* Tab body */
+        .ap-body{padding:1.5rem 2rem 3rem;flex:1;}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        .tab-anim{animation:fadeUp 0.28s ease;}
 
         /* Meal sub-tabs */
-        .meal-tabs {
-          display: flex; gap: 6px; flex-wrap: wrap;
-          margin-bottom: 1.4rem;
+        .meal-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1.3rem;}
+        .meal-tab{
+          display:flex;align-items:center;gap:6px;
+          padding:7px 14px;
+          border:1.5px solid #EDE0CF;border-radius:99px;
+          background:#FDFAF6;cursor:pointer;
+          font-family:'DM Sans',sans-serif;
+          font-size:12px;font-weight:600;color:#8B6A4A;
+          transition:all 0.15s;
         }
-        .meal-tab {
-          display: flex; align-items: center; gap: 6px;
-          padding: 7px 14px;
-          border: 1.5px solid #E8D9C5;
-          border-radius: 99px;
-          background: #FDFAF5;
-          cursor: pointer;
-          font-family: 'Nunito', sans-serif;
-          font-size: 12px; font-weight: 700;
-          color: #8B6A4A;
-          transition: all 0.18s;
-        }
-        .meal-tab:hover { border-color: #C4A882; background: #F5EFE6; }
-        .meal-tab.active { border-width: 2px; color: var(--theme-text); }
+        .meal-tab:hover{border-color:#C4A882;background:#F5EFE6;}
+        .meal-tab.active{border-width:2px;font-weight:700;}
 
-        /* Meal items */
-        .meal-items {
-          display: flex;
-          flex-direction: column;
-          gap: 9px;
+        /* Meal time hint */
+        .meal-time{
+          font-size:11.5px;color:#A08060;margin-bottom:1rem;
+          display:flex;align-items:center;gap:6px;
         }
-        .meal-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 10px;
-          padding: 11px 14px;
-          background: #FFF;
-          border: 1px solid #E8D9C5;
-          border-radius: 12px;
-          font-size: 13.5px;
-          color: #3D2010;
-          line-height: 1.55;
-          transition: border-color 0.18s, transform 0.18s;
+        .time-dot{width:5px;height:5px;border-radius:50%;background:#C4A882;flex-shrink:0;}
+
+        /* Meal cards */
+        .meal-cards{display:flex;flex-direction:column;gap:10px;}
+        .meal-card{
+          padding:14px 16px;
+          background:#FFF;
+          border:1px solid #EDE0CF;border-radius:14px;
+          transition:all 0.18s;
+          display:flex;gap:12px;align-items:flex-start;
         }
-        .meal-item:hover { border-color: #C4A882; transform: translateX(3px); }
-        .meal-item-dot {
-          width: 6px; height: 6px;
-          border-radius: 50%;
-          flex-shrink: 0;
-          margin-top: 6px;
+        .meal-card:hover{border-color:#C4A882;transform:translateX(3px);box-shadow:0 2px 12px rgba(92,46,10,0.07);}
+        .meal-card-icon{
+          width:38px;height:38px;border-radius:10px;
+          display:flex;align-items:center;justify-content:center;
+          font-size:18px;flex-shrink:0;
+          background:#FBF5EC;
+        }
+        .meal-card-body{flex:1;}
+        .meal-card-name{
+          font-family:'Playfair Display',serif;
+          font-size:15px;font-weight:600;color:#2C1608;margin-bottom:4px;
+        }
+        .meal-card-desc{font-size:12.5px;color:#7A5040;line-height:1.6;}
+        .meal-card-energy{
+          padding:3px 10px;border-radius:99px;
+          font-size:10.5px;font-weight:700;
+          letter-spacing:0.3px;margin-top:7px;
+          display:inline-block;
         }
 
-        /* Timing schedule */
-        .timing-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0;
-          position: relative;
+        /* Section title */
+        .sec-title{
+          font-family:'Playfair Display',serif;
+          font-size:15px;font-weight:600;color:#2C1608;
+          margin-bottom:1rem;padding-bottom:0.6rem;
+          border-bottom:1px solid #EDE0CF;
         }
-        .timing-list::before {
-          content: '';
-          position: absolute;
-          left: 44px; top: 24px; bottom: 24px;
-          width: 1px;
-          background: linear-gradient(180deg, transparent, #E8D9C5 10%, #E8D9C5 90%, transparent);
+
+        /* Timing list */
+        .timing-list{display:flex;flex-direction:column;gap:0;position:relative;}
+        .timing-list::before{
+          content:'';position:absolute;
+          left:48px;top:24px;bottom:24px;
+          width:1px;background:linear-gradient(180deg,transparent,#E8D0B8 10%,#E8D0B8 90%,transparent);
         }
-        .timing-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 14px;
-          padding: 12px 0;
-          position: relative;
+        .timing-row{
+          display:flex;align-items:flex-start;gap:14px;
+          padding:12px 0;position:relative;
         }
-        .timing-time {
-          width: 80px;
-          flex-shrink: 0;
-          font-size: 11px;
-          font-weight: 800;
-          color: #A0722A;
-          letter-spacing: 0.3px;
-          text-align: right;
-          padding-top: 3px;
+        .timing-t{
+          width:85px;flex-shrink:0;
+          font-size:11px;font-weight:700;color:#A07030;
+          text-align:right;padding-top:3px;
         }
-        .timing-dot-wrap {
-          width: 18px;
-          flex-shrink: 0;
-          display: flex;
-          align-items: flex-start;
-          justify-content: center;
-          padding-top: 6px;
-          position: relative;
-          z-index: 1;
-        }
-        .timing-dot {
-          width: 10px; height: 10px;
-          border-radius: 50%;
-          border: 2px solid #FFF;
-          box-shadow: 0 0 0 2px #E8D9C5;
-          flex-shrink: 0;
-        }
-        .timing-text {
-          font-size: 13px;
-          color: #3D2010;
-          line-height: 1.55;
-          padding-top: 1px;
-        }
-        .timing-label {
-          font-weight: 700;
-          font-size: 11px;
-          color: #8B5C2A;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          margin-bottom: 2px;
-        }
+        .timing-dot-wrap{width:18px;flex-shrink:0;display:flex;align-items:flex-start;justify-content:center;padding-top:7px;position:relative;z-index:1;}
+        .timing-dot{width:8px;height:8px;border-radius:50%;}
+        .timing-text{font-size:13px;color:#4A2A10;line-height:1.5;}
 
         /* Spice cards */
-        .spice-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-          gap: 12px;
+        .spice-grid{display:flex;flex-direction:column;gap:10px;}
+        .spice-card{
+          padding:14px 16px;background:#FFF;
+          border:1px solid #EDE0CF;border-radius:14px;
         }
-        .spice-card {
-          padding: 1.2rem;
-          border: 1px solid #E8D9C5;
-          border-radius: 14px;
-          background: #FFF;
-          transition: border-color 0.18s, transform 0.18s;
+        .spice-name{
+          font-family:'Playfair Display',serif;
+          font-size:14px;font-weight:600;color:#2C1608;margin-bottom:5px;
         }
-        .spice-card:hover { border-color: #C4A882; transform: translateY(-2px); }
-        .spice-name {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 17px; font-weight: 500; color: #2C1810;
-          margin-bottom: 6px;
+        .spice-recipe{
+          font-size:12px;color:#5A3A1A;margin-bottom:5px;line-height:1.55;
         }
-        .spice-recipe {
-          font-size: 12px; color: #8B5C2A;
-          line-height: 1.5; margin-bottom: 8px;
-          font-style: italic;
-        }
-        .spice-use {
-          font-size: 12px; color: #6B4A2A;
-          line-height: 1.5;
-          padding-top: 8px;
-          border-top: 1px solid #F0E6D6;
+        .spice-use{
+          font-size:11.5px;color:#9A7050;
+          font-style:italic;
+          padding:6px 10px;background:#FBF5EC;border-radius:8px;
         }
 
         /* Rules list */
-        .rules-list {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          counter-reset: rules;
+        .rules-list{display:flex;flex-direction:column;gap:8px;}
+        .rule-item{
+          display:flex;align-items:flex-start;gap:10px;
+          padding:11px 14px;background:#FFF;
+          border:1px solid #EDE0CF;border-radius:12px;
+          font-size:13px;color:#3D2010;line-height:1.55;
         }
-        .rule-item {
-          counter-increment: rules;
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 11px 14px;
-          background: #FFF;
-          border: 1px solid #E8D9C5;
-          border-radius: 12px;
-          font-size: 13.5px;
-          color: #3D2010;
-          line-height: 1.55;
-        }
-        .rule-num {
-          width: 24px; height: 24px;
-          border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 11px; font-weight: 800;
-          flex-shrink: 0;
-          margin-top: 1px;
-          color: #FFF;
+        .rule-num{
+          width:22px;height:22px;border-radius:50%;
+          display:flex;align-items:center;justify-content:center;
+          font-size:10px;font-weight:700;
+          flex-shrink:0;color:#FFF;margin-top:2px;
         }
 
-        /* Weekly */
-        .weekly-list {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
+        /* Avoid grid */
+        .avoid-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;}
+        .avoid-panel{
+          padding:12px 14px;background:#FFF;
+          border:1px solid #EDE0CF;border-radius:12px;
         }
-        .weekly-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 12px 14px;
-          background: #FFF;
-          border: 1px solid #E8D9C5;
-          border-radius: 12px;
-          font-size: 13px; color: #3D2010; line-height: 1.6;
+        .avoid-panel-title{
+          font-size:10px;font-weight:700;letter-spacing:0.8px;
+          text-transform:uppercase;color:#C0392B;margin-bottom:8px;
         }
-        .weekly-day {
-          font-weight: 800;
-          font-size: 11px;
-          min-width: 70px;
-          flex-shrink: 0;
-          padding-top: 1px;
+        .avoid-item{
+          font-size:12px;color:#4A2A10;
+          padding:3px 0;border-bottom:1px solid #F5EBE0;line-height:1.4;
         }
+        .avoid-item:last-child{border:none;}
 
-        /* Favour / Avoid grid */
-        .fav-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 14px;
-          margin-bottom: 1.2rem;
+        /* Supplements */
+        .supp-list{display:flex;flex-direction:column;gap:10px;}
+        .supp-card{
+          display:flex;align-items:flex-start;gap:12px;
+          padding:14px 16px;background:#FFF;
+          border:1px solid #EDE0CF;border-radius:14px;
         }
-        .fav-panel {
-          border-radius: 14px;
-          padding: 1.1rem;
+        .supp-icon{
+          width:38px;height:38px;border-radius:10px;
+          display:flex;align-items:center;justify-content:center;
+          font-size:18px;flex-shrink:0;
         }
-        .fav-panel-title {
-          font-size: 10px; font-weight: 800;
-          letter-spacing: 1px; text-transform: uppercase;
-          margin-bottom: 10px;
-          display: flex; align-items: center; gap: 6px;
-        }
-        .fav-item {
-          font-size: 12.5px; color: #3D2010;
-          padding: 4px 0;
-          border-bottom: 1px solid rgba(0,0,0,0.05);
-          line-height: 1.5;
-        }
-        .fav-item:last-child { border-bottom: none; }
+        .supp-name{font-family:'Playfair Display',serif;font-size:14px;font-weight:600;color:#2C1608;margin-bottom:3px;}
+        .supp-dose{font-size:12px;color:#5A3A1A;margin-bottom:3px;}
+        .supp-benefit{font-size:12px;color:#9A7050;font-style:italic;}
 
-        /* Supplement cards */
-        .supp-list {
-          display: flex; flex-direction: column; gap: 10px;
+        /* Loading overlay */
+        .ap-loading{
+          flex:1;display:flex;flex-direction:column;
+          align-items:center;justify-content:center;gap:1rem;
+          color:#8B6A4A;
         }
-        .supp-card {
-          display: flex;
-          gap: 14px;
-          padding: 1rem 1.2rem;
-          border: 1px solid #E8D9C5;
-          border-radius: 13px;
-          background: #FFF;
-          transition: border-color 0.18s;
+        .loading-ring{
+          width:48px;height:48px;border-radius:50%;
+          border:3px solid #EDE0CF;
+          animation:spin 0.8s linear infinite;
+          flex-shrink:0;
         }
-        .supp-card:hover { border-color: #C4A882; }
-        .supp-icon {
-          width: 40px; height: 40px;
-          border-radius: 10px;
-          background: #F5EFE6;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 18px; flex-shrink: 0;
+        .loading-text{
+          font-family:'Playfair Display',serif;
+          font-size:16px;color:#3D2010;font-style:italic;
         }
-        .supp-name {
-          font-family: 'Cormorant Garamond', serif;
-          font-size: 16px; font-weight: 500; color: #2C1810;
-          margin-bottom: 3px;
-        }
-        .supp-dose { font-size: 12px; color: #8B5C2A; margin-bottom: 4px; font-weight: 600; }
-        .supp-benefit { font-size: 12px; color: #6B4A2A; line-height: 1.5; }
+        .loading-sub{font-size:12px;color:#B09070;}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+        .loading-dots span{display:inline-block;animation:pulse 1.4s ease infinite;}
+        .loading-dots span:nth-child(2){animation-delay:0.2s;}
+        .loading-dots span:nth-child(3){animation-delay:0.4s;}
 
-        /* Fasting card */
-        .fasting-box {
-          background: #FFF;
-          border: 1px solid #E8D9C5;
-          border-radius: 14px;
-          padding: 1.4rem;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .fasting-row {
-          display: flex;
-          gap: 10px;
-          align-items: flex-start;
-          font-size: 13.5px; color: #3D2010; line-height: 1.55;
-        }
-        .fasting-label {
-          font-size: 10px; font-weight: 800;
-          letter-spacing: 1px; text-transform: uppercase;
-          min-width: 90px; flex-shrink: 0;
-          margin-top: 2px;
-        }
-
-        /* Incompatible combos */
-        .incompat-list { display: flex; flex-direction: column; gap: 8px; }
-        .incompat-item {
-          display: flex; gap: 10px; align-items: flex-start;
-          padding: 10px 13px;
-          background: #FFF5F0;
-          border: 1px solid #F4BBAA;
-          border-radius: 11px;
-          font-size: 13px; color: #4A1803; line-height: 1.55;
-        }
-
-        /* Sample day timeline */
-        .sampleday-list { display: flex; flex-direction: column; gap: 0; position: relative; }
-        .sampleday-list::before { content:''; position:absolute; left:32px; top:20px; bottom:20px; width:1px; background:linear-gradient(180deg,transparent,#E8D9C5 10%,#E8D9C5 90%,transparent); }
-        .sampleday-item { display:flex; gap:14px; align-items:flex-start; padding:10px 0; position:relative; }
-        .sampleday-time { width:55px; flex-shrink:0; font-size:11px; font-weight:800; color:#A0722A; text-align:right; padding-top:3px; }
-        .sampleday-dot-wrap { width:20px; flex-shrink:0; display:flex; justify-content:center; padding-top:5px; position:relative; z-index:1; }
-        .sampleday-dot { width:10px; height:10px; border-radius:50%; border:2px solid #FFF; box-shadow:0 0 0 2px; }
-        .sampleday-text { font-size:13px; color:#3D2010; line-height:1.6; padding-top:1px; }
-
-        /* Section title */
-        .sec-title {
-          font-size: 10px; font-weight: 800;
-          letter-spacing: 1.5px; text-transform: uppercase;
-          color: #8B5C2A;
-          margin-bottom: 1rem; padding-bottom: 8px;
-          border-bottom: 1px solid #F0E6D6;
-          display: flex; align-items: center; gap: 7px;
-        }
-
-        /* Loading */
-        .loading-overlay {
-          flex: 1;
-          display: flex; flex-direction: column;
-          align-items: center; justify-content: center;
-          text-align: center; padding: 3rem;
-          animation: fadeIn 0.3s ease;
-        }
-        .load-orb {
-          width: 72px; height: 72px;
-          border-radius: 50%;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 32px;
-          margin: 0 auto 1.2rem;
-          animation: pulse 1.5s ease infinite;
-        }
-        @keyframes pulse { 0%,100%{transform:scale(1);box-shadow:0 0 0 0 rgba(92,46,10,0.3)} 50%{transform:scale(1.05);box-shadow:0 0 0 16px rgba(92,46,10,0)} }
-
-        @media (max-width: 900px) {
-          .page { flex-direction: column; }
-          .config-panel { width: 100%; border-right: none; border-bottom: 1px solid #E8D9C5; }
-          .fav-grid { grid-template-columns: 1fr; }
-          .spice-grid { grid-template-columns: 1fr; }
-          .tab-content { padding: 1.2rem 1.2rem 2rem; }
-          .nav { padding: 0 1rem; }
+        @media(max-width:768px){
+          .ap-sidebar{width:100%;border-right:none;border-bottom:1px solid #EDE0CF;}
+          .ap-layout{flex-direction:column;}
         }
       `}</style>
 
-      <div className="dp-root">
-        {/* Navbar */}
-        <nav className="nav">
-          <div className="nav-brand">
-            <div className="nav-icon">🌿</div>
-            Ayurveda · Diet Planner
-          </div>
-          {generated && plan && (
-            <span style={{ fontSize: 12, color: "#A0722A", fontWeight: 600 }}>
-              {plan.dosha} Plan · {plan.goal} · {plan.current_season}
+      <div className="ap-root">
+        {/* ── Nav ── */}
+        <nav className="ap-nav">
+          <div className="ap-brand">
+            <div className="ap-logo">🪷</div>
+            <span>Āyur Āhāra</span>
+            <span style={{fontSize:12,color:"#A08060",fontFamily:"'Playfair Display',serif",fontStyle:"italic",fontWeight:400}}>
+              — The Art of Mindful Eating
             </span>
+          </div>
+          {plan && (
+            <div className={`ap-badge ${aiPowered?"":"fallback"}`}>
+              {aiPowered ? "✦ AI Generated" : "⚡ Local Plan"}
+            </div>
           )}
         </nav>
 
-        <div className="page">
-          {/* ── Config Panel ── */}
-          <aside className="config-panel">
+        <div className="ap-layout">
+          {/* ── Sidebar ── */}
+          <aside className="ap-sidebar">
+
             {/* Dosha */}
-            <div>
-              <div className="config-section-title">🌿 Your Dosha</div>
-              <div className="dosha-selector">
-                {Object.entries(DOSHA_THEME).map(([d, t]) => (
+            <div className="sidebar-section">
+              <div className="sidebar-label">Your Dosha (Prakriti)</div>
+              <div className="dosha-grid">
+                {Object.entries(DOSHA).map(([d,t]) => (
                   <button
                     key={d}
-                    className={`dosha-btn${dosha === d ? " active" : ""}`}
-                    style={dosha === d ? { borderColor: t.colour, background: t.light } : {}}
-                    onClick={() => setDosha(d)}
+                    className={`dosha-btn${dosha===d?" active":""}`}
+                    style={dosha===d?{borderColor:t.color,background:t.bg}:{}}
+                    onClick={()=>setDosha(d)}
                   >
-                    <span className="dosha-btn-sym">{t.sym}</span>
-                    <div>
-                      <div className="dosha-btn-name">{d}</div>
-                      <div className="dosha-btn-el">{t.el}</div>
+                    <span className="dosha-sym">{t.sym}</span>
+                    <div className="dosha-info">
+                      <div className="dosha-name" style={dosha===d?{color:t.text}:{}}>{d}</div>
+                      <div className="dosha-el">{t.el}</div>
                     </div>
-                    <div className="dosha-btn-check"
-                      style={dosha === d ? { background: t.colour, borderColor: t.colour, color: "#FFF" } : {}}>
-                      {dosha === d ? "✓" : ""}
-                    </div>
+                    {dosha===d&&<span className="dosha-agni" style={{color:t.text,background:`${t.color}22`}}>{t.agni}</span>}
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Goal */}
-            <div>
-              <div className="config-section-title">🎯 Wellness Goal</div>
-              <div className="grid-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                {GOALS.map(g => (
-                  <button key={g.id} className={`sel-btn${goal === g.id ? " active" : ""}`}
-                    style={goal === g.id ? { borderColor: theme.colour, background: theme.light } : {}}
-                    onClick={() => setGoal(g.id)}>
-                    <span className="sel-btn-icon">{g.icon}</span>
-                    <span className="sel-btn-label">{g.label}</span>
-                    <span className="sel-btn-desc">{g.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Season */}
-            <div>
-              <div className="config-section-title">🌍 Current Season</div>
-              <div className="grid-2">
-                {SEASONS.map(s => (
-                  <button key={s.id} className={`sel-btn${season === s.id ? " active" : ""}`}
-                    style={season === s.id ? { borderColor: theme.colour, background: theme.light } : {}}
-                    onClick={() => setSeason(s.id)}>
-                    <span className="sel-btn-icon">{s.icon}</span>
-                    <span className="sel-btn-label">{s.label}</span>
+            <div className="sidebar-section">
+              <div className="sidebar-label">Goal (Lakshya)</div>
+              <div className="pill-grid">
+                {GOALS.map(g=>(
+                  <button
+                    key={g.id}
+                    className={`pill-btn${goal===g.id?" active":""}`}
+                    style={goal===g.id?{borderColor:theme.color,color:theme.text,background:theme.bg}:{}}
+                    onClick={()=>setGoal(g.id)}
+                    title={g.desc}
+                  >
+                    <span style={{fontSize:13}}>{g.icon}</span> {g.id}
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Lifestyle */}
-            <div>
-              <div className="config-section-title">🥗 Diet Preference</div>
-              <div className="grid-3">
-                {LIFESTYLES.map(l => (
-                  <button key={l.id} className={`sel-btn${lifestyle === l.id ? " active" : ""}`}
-                    style={lifestyle === l.id ? { borderColor: theme.colour, background: theme.light } : {}}
-                    onClick={() => setLifestyle(l.id)}>
-                    <span className="sel-btn-icon">{l.icon}</span>
-                    <span className="sel-btn-label">{l.label}</span>
+            <div className="sidebar-section">
+              <div className="sidebar-label">Lifestyle (Aahar)</div>
+              <div className="pill-grid">
+                {LIFESTYLES.map(l=>(
+                  <button
+                    key={l.id}
+                    className={`pill-btn${lifestyle===l.id?" active":""}`}
+                    style={lifestyle===l.id?{borderColor:theme.color,color:theme.text,background:theme.bg}:{}}
+                    onClick={()=>setLifestyle(l.id)}
+                    title={l.sub}
+                  >
+                    <span style={{fontSize:13}}>{l.icon}</span> {l.id}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Season */}
+            <div className="sidebar-section">
+              <div className="sidebar-label">Season (Ritu)</div>
+              <div className="pill-grid">
+                {SEASONS.map(s=>(
+                  <button
+                    key={s.id}
+                    className={`pill-btn${season===s.id?" active":""}`}
+                    style={season===s.id?{borderColor:theme.color,color:theme.text,background:theme.bg}:{}}
+                    onClick={()=>setSeason(s.id)}
+                  >
+                    <span style={{fontSize:13}}>{s.icon}</span> {s.id}
                   </button>
                 ))}
               </div>
             </div>
 
             {/* Generate */}
-            <button className="gen-btn" onClick={handleGenerate} disabled={loading}>
-              {loading ? <>🌀 Generating…</> : <>✨ Generate My Diet Plan</>}
+            <button
+              className="gen-btn"
+              style={{background:theme.gradient}}
+              onClick={generatePlan}
+              disabled={loading}
+            >
+              {loading
+                ? <><div className="spinner"/> Crafting Your Plan…</>
+                : <><span style={{fontSize:16}}>✦</span> Generate My Plan</>
+              }
             </button>
+
+            {plan && !loading && (
+              <button
+                className="gen-btn"
+                style={{background:"transparent",color:theme.color,border:`1.5px solid ${theme.color}`,marginTop:8}}
+                onClick={generatePlan}
+                disabled={loading}
+              >
+                <span style={{fontSize:14}}>⟳</span> New Variation
+              </button>
+            )}
           </aside>
 
-          {/* ── Results Panel ── */}
-          <section className="results-panel">
-            {loading ? (
-              <div className="loading-overlay">
-                <div className="load-orb" style={{ background: theme.bg }}>🌿</div>
-                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 24, color: "#2C1810", marginBottom: 8 }}>
-                  Crafting your plan…
+          {/* ── Main ── */}
+          <main className="ap-main" ref={containerRef}>
+            {loading && (
+              <div className="ap-loading">
+                <div className="loading-ring" style={{borderTopColor:theme.color}}/>
+                <div className="loading-text">Consulting the ancient texts</div>
+                <div className="loading-sub">
+                  <span className="loading-dots">
+                    <span>•</span><span>•</span><span>•</span>
+                  </span>
                 </div>
-                <p style={{ fontSize: 13, color: "#A0722A" }}>
-                  Consulting the classical Ayurvedic texts
-                </p>
               </div>
-            ) : !generated ? (
-              <div className="empty-state">
-                <div className="empty-orb">🌿</div>
-                <div className="empty-title">Your Personalised Diet Awaits</div>
+            )}
+
+            {!loading && !plan && (
+              <div className="ap-empty">
+                <div className="empty-icon">🪷</div>
+                <div className="empty-title">Your Personalised Āhāra Awaits</div>
                 <p className="empty-sub">
-                  Select your dosha, goal, season, and diet preference on the left, then generate your complete Ayurvedic diet plan.
+                  Select your Dosha, goal, lifestyle & season on the left, then let ancient Ayurvedic wisdom craft a unique daily meal plan just for you.
+                </p>
+                <p style={{fontSize:12,color:"#C4A882",marginTop:8,fontStyle:"italic"}}>
+                  "Let food be thy medicine, and medicine be thy food."
                 </p>
               </div>
-            ) : plan && (
+            )}
+
+            {!loading && plan && (
               <>
-                {/* Hero banner */}
-                <div className="plan-hero" data-sym={theme.sym} style={{ background: theme.bg }}>
-                  <span className="plan-hero-eyebrow">Ayurvedic Diet Plan · {plan.current_season} Season</span>
-                  <div className="plan-hero-title">{plan.dosha} Diet</div>
-                  <div className="plan-hero-sub">{plan.principle}</div>
+                {/* Hero */}
+                <div className="ap-hero" style={{background:theme.gradient}}>
+                  <div className="hero-top">
+                    <div className="hero-left">
+                      <div className="hero-sym">{theme.sym}</div>
+                      <div className="hero-title">{dosha} Dosha Plan</div>
+                      <div className="hero-sub">{theme.el} · {theme.agni}</div>
+                    </div>
+                  </div>
                   <div className="hero-tags">
-                    <span className="hero-tag">{theme.sym} {plan.dosha}</span>
-                    <span className="hero-tag">🎯 {plan.goal}</span>
-                    <span className="hero-tag">{SEASONS.find(s=>s.id===plan.current_season)?.icon} {plan.current_season}</span>
-                    <span className="hero-tag">{LIFESTYLES.find(l=>l.id===plan.lifestyle)?.icon || "🥗"} {plan.lifestyle}</span>
+                    <span className="hero-tag">🎯 {goal}</span>
+                    <span className="hero-tag">{LIFESTYLES.find(l=>l.id===lifestyle)?.icon} {lifestyle}</span>
+                    <span className="hero-tag">{SEASONS.find(s=>s.id===season)?.icon} {season}</span>
                   </div>
-                  <div className="hero-agni">
-                    <strong>{plan.agni_type}</strong><br />{plan.agni_desc}
-                  </div>
+                  {plan.meals?.agni_tip && (
+                    <div className="hero-agni">
+                      <strong>Agni Tip:</strong> {plan.meals.agni_tip}
+                    </div>
+                  )}
+                  {aiPowered && (
+                    <div className="hero-ai-note">
+                      <span>✦</span> Uniquely generated by AI — each plan is different
+                    </div>
+                  )}
                 </div>
 
                 {/* Seasonal note */}
                 {plan.seasonal_note && (
-                  <div style={{ padding: "0 2rem", marginTop: "0.8rem" }}>
-                    <div className="seasonal-banner">
-                      <span>🌿</span>
-                      <span><strong>Seasonal Adjustment:</strong> {plan.seasonal_note}</span>
-                    </div>
+                  <div className="seasonal">
+                    <span style={{fontSize:14,flexShrink:0}}>🌿</span>
+                    <span><strong>Seasonal Guidance:</strong> {plan.seasonal_note}</span>
+                  </div>
+                )}
+
+                {/* Daily wisdom */}
+                {plan.meals?.daily_wisdom && (
+                  <div className="wisdom-bar" style={{background:theme.bg,border:`1px solid ${theme.color}30`}}>
+                    <span style={{fontSize:14,flexShrink:0}}>💡</span>
+                    <span style={{fontSize:12.5,color:theme.text,fontStyle:"italic"}}>{plan.meals.daily_wisdom}</span>
                   </div>
                 )}
 
                 {/* Tabs */}
-                <div className="tabs-bar" style={{ marginTop: "1rem" }}>
-                  {TABS.map(t => (
+                <div className="ap-tabs">
+                  {TABS.map(t=>(
                     <button
                       key={t.id}
-                      className={`tab-btn${activeTab === t.id ? " active" : ""}`}
-                      onClick={() => setActiveTab(t.id)}
+                      className={`ap-tab${activeTab===t.id?" active":""}`}
+                      style={activeTab===t.id?{color:theme.text,borderBottomColor:theme.color}:{}}
+                      onClick={()=>setActiveTab(t.id)}
                     >
-                      <span>{t.icon}</span>{t.label}
+                      <span style={{fontSize:13}}>{t.icon}</span> {t.label}
                     </button>
                   ))}
                 </div>
 
-                {/* Tab content */}
-                <div className="tab-content" key={activeTab}
-                  style={{ "--theme-colour": theme.colour, "--theme-light": theme.light, "--theme-text": theme.text }}>
+                {/* Tab Body */}
+                <div className="ap-body tab-anim" key={activeTab}>
 
                   {/* ── MEALS ── */}
-                  {activeTab === "meals" && plan.meals && (
+                  {activeTab==="meals" && (
                     <>
                       <div className="meal-tabs">
-                        {Object.keys(plan.meals).map(m => (
-                          <button key={m}
-                            className={`meal-tab${activeMeal === m ? " active" : ""}`}
-                            style={activeMeal === m ? { borderColor: theme.colour, background: theme.light, color: theme.text } : {}}
-                            onClick={() => setActiveMeal(m)}>
-                            <span>{MEAL_ICONS[m] || "🍽️"}</span>
-                            {MEAL_LABELS[m] || m}
+                        {Object.entries(MEAL_META).map(([k,m])=>(
+                          <button
+                            key={k}
+                            className={`meal-tab${activeMeal===k?" active":""}`}
+                            style={activeMeal===k?{borderColor:theme.color,color:theme.text,background:theme.bg}:{}}
+                            onClick={()=>setActiveMeal(k)}
+                          >
+                            <span style={{fontSize:14}}>{m.icon}</span> {m.label}
                           </button>
                         ))}
                       </div>
-                      <div className="meal-items">
-                        {(plan.meals[activeMeal] || []).map((item, i) => (
-                          <div key={i} className="meal-item">
-                            <div className="meal-item-dot" style={{ background: theme.colour }} />
-                            {item}
-                          </div>
-                        ))}
+                      <div className="meal-time">
+                        <div className="time-dot" style={{background:theme.color}}/>
+                        <span>{MEAL_META[activeMeal].time}</span>
                       </div>
-                      {plan.favour && (
-                        <div style={{ marginTop: "1.6rem" }}>
-                          <div className="sec-title">Best Foods to Include</div>
-                          <div className="fav-grid">
-                            <div className="fav-panel" style={{ background: "#EAF7F0", border: "1px solid #9FD9C0" }}>
-                              <div className="fav-panel-title" style={{ color: "#1E7A4A" }}>✓ Favour</div>
-                              {[...(plan.favour?.grains||[]), ...(plan.favour?.vegetables||[]), ...(plan.favour?.fruits||[])].slice(0,8).map((f,i)=>(
-                                <div key={i} className="fav-item">{f}</div>
-                              ))}
+                      <div className="meal-cards">
+                        {(plan.meals?.[activeMeal]||[]).map((item,i)=>{
+                          const ec = ENERGY_COLORS[item.energy] || ENERGY_COLORS.Moderate;
+                          return (
+                            <div key={i} className="meal-card">
+                              <div className="meal-card-icon" style={{background:theme.bg}}>
+                                {MEAL_META[activeMeal].icon}
+                              </div>
+                              <div className="meal-card-body">
+                                <div className="meal-card-name">{item.name}</div>
+                                <div className="meal-card-desc">{item.description}</div>
+                                <span
+                                  className="meal-card-energy"
+                                  style={{background:ec.bg,color:ec.text,border:`1px solid ${ec.border}`}}
+                                >
+                                  {item.energy}
+                                </span>
+                              </div>
                             </div>
-                            <div className="fav-panel" style={{ background: "#FFF0F0", border: "1px solid #F4BBBB" }}>
-                              <div className="fav-panel-title" style={{ color: "#C0392B" }}>✗ Avoid</div>
-                              {[...(plan.avoid?.other||[]), ...(plan.avoid?.drinks||[])].slice(0,8).map((f,i)=>(
-                                <div key={i} className="fav-item">{f}</div>
-                              ))}
-                            </div>
+                          );
+                        })}
+                        {(plan.meals?.[activeMeal]||[]).length===0&&(
+                          <div style={{color:"#B09070",fontSize:13,fontStyle:"italic",padding:"1rem 0"}}>
+                            No specific items for this meal slot with your lifestyle filter.
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </>
                   )}
 
                   {/* ── TIMING ── */}
-                  {activeTab === "timing" && plan.meal_timing && (
-                    <div className="timing-list">
-                      {Object.entries(plan.meal_timing).map(([key, val], i) => (
-                        <div key={i} className="timing-item">
-                          <div className="timing-time">
-                            {val.split(" ")[0] || ""}
-                          </div>
-                          <div className="timing-dot-wrap">
-                            <div className="timing-dot" style={{ background: theme.colour, boxShadow: `0 0 0 2px ${theme.colour}` }} />
-                          </div>
-                          <div className="timing-text">
-                            <div className="timing-label">{key.replace(/_/g, " ").toUpperCase()}</div>
-                            {val}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* ── WEEKLY ── */}
-                  {activeTab === "weekly" && plan.weekly_theme && (
+                  {activeTab==="timing" && plan.meal_timing && (
                     <>
-                      <div className="weekly-list">
-                        {plan.weekly_theme.map((item, i) => {
-                          const [day, ...rest] = item.split(": ");
-                          const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-                          return (
-                            <div key={i} className="weekly-item">
-                              <div className="weekly-day" style={{ color: theme.colour }}>{days[i] || day}</div>
-                              <div>{rest.join(": ") || item}</div>
+                      <div className="sec-title">Daily Dinacharya Schedule</div>
+                      <div className="timing-list">
+                        {Object.entries(plan.meal_timing).map(([k,v],i)=>(
+                          <div key={i} className="timing-row">
+                            <div className="timing-t">{k.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}</div>
+                            <div className="timing-dot-wrap">
+                              <div className="timing-dot" style={{background:theme.color,boxShadow:`0 0 0 2px ${theme.color}`}}/>
                             </div>
-                          );
-                        })}
+                            <div className="timing-text">{v}</div>
+                          </div>
+                        ))}
                       </div>
-                      {plan.seasonal_adjustments && (
-                        <div style={{ marginTop: "1.6rem" }}>
-                          <div className="sec-title">Seasonal Diet Adjustments</div>
-                          {Object.entries(plan.seasonal_adjustments).map(([s, note]) => (
-                            <div key={s} className="weekly-item" style={{ marginBottom: 8 }}>
-                              <div className="weekly-day" style={{ color: theme.colour, minWidth: 60 }}>
-                                {SEASONS.find(x=>x.id===s)?.icon} {s}
-                              </div>
-                              <div style={{ fontSize: 13, color: "#4A2C14", lineHeight: 1.6 }}>{note}</div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </>
                   )}
 
                   {/* ── SPICES ── */}
-                  {activeTab === "spices" && plan.spice_blends && (
-                    <div className="spice-grid">
-                      {plan.spice_blends.map((s, i) => (
-                        <div key={i} className="spice-card" style={{ borderColor: `${theme.colour}30` }}>
-                          <div className="spice-name" style={{ color: theme.text }}>🌶️ {s.name}</div>
-                          <div className="spice-recipe">{s.recipe}</div>
-                          <div className="spice-use"><strong>How to use:</strong> {s.use}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* ── RULES ── */}
-                  {activeTab === "rules" && plan.eating_rules && (
-                    <div className="rules-list">
-                      {plan.eating_rules.map((r, i) => (
-                        <div key={i} className="rule-item">
-                          <div className="rule-num" style={{ background: theme.colour }}>{i + 1}</div>
-                          {r}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* ── INCOMPATIBLE ── */}
-                  {activeTab === "incompatible" && (
+                  {activeTab==="spices" && plan.spice_blends && (
                     <>
-                      {plan.viruddha_ahara && (
-                        <>
-                          <div className="sec-title">⚠️ Viruddha Ahara — Incompatible Food Combinations</div>
-                          <div className="incompat-list" style={{ marginBottom: "1.6rem" }}>
-                            {plan.viruddha_ahara.map((item, i) => (
-                              <div key={i} className="incompat-item">
-                                <span style={{ fontSize: 14, flexShrink: 0 }}>⚠️</span>
-                                {item}
-                              </div>
+                      <div className="sec-title">Sacred Spice Blends (Churnas)</div>
+                      <div className="spice-grid">
+                        {plan.spice_blends.map((s,i)=>(
+                          <div key={i} className="spice-card" style={{borderLeft:`4px solid ${theme.color}`}}>
+                            <div className="spice-name">🌶️ {s.name}</div>
+                            <div className="spice-recipe"><strong>Recipe:</strong> {s.recipe}</div>
+                            <div className="spice-use">💡 {s.use}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── WISDOM ── */}
+                  {activeTab==="wisdom" && plan.eating_rules && (
+                    <>
+                      <div className="sec-title">Āhāra Vidhi — Eating Rules</div>
+                      <div className="rules-list">
+                        {plan.eating_rules.map((r,i)=>(
+                          <div key={i} className="rule-item">
+                            <div className="rule-num" style={{background:theme.color}}>{i+1}</div>
+                            {r}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── AVOID ── */}
+                  {activeTab==="avoid" && plan.avoid && (
+                    <>
+                      <div className="sec-title">Foods to Minimise</div>
+                      <div className="avoid-grid">
+                        {Object.entries(plan.avoid).filter(([,v])=>Array.isArray(v)&&v.length>0).map(([cat,items])=>(
+                          <div key={cat} className="avoid-panel">
+                            <div className="avoid-panel-title">{cat.replace(/_/g," ")}</div>
+                            {items.map((it,i)=>(
+                              <div key={i} className="avoid-item">⚠️ {it}</div>
                             ))}
                           </div>
-                        </>
-                      )}
-                      {plan.avoid && (
-                        <>
-                          <div className="sec-title">Foods to Minimise</div>
-                          <div className="fav-grid">
-                            {Object.entries(plan.avoid).filter(([, v]) => Array.isArray(v) && v.length > 0).map(([cat, items]) => (
-                              <div key={cat} className="fav-panel" style={{ background: "#FFF5F0", border: "1px solid #F4BBAA", borderRadius: 14 }}>
-                                <div className="fav-panel-title" style={{ color: "#C0392B" }}>{cat.replace(/_/g," ").toUpperCase()}</div>
-                                {items.map((it, i) => <div key={i} className="fav-item">{it}</div>)}
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
+                        ))}
+                      </div>
                     </>
                   )}
 
                   {/* ── SUPPLEMENTS ── */}
-                  {activeTab === "supplements" && plan.supplements && (
-                    <div className="supp-list">
-                      {plan.supplements.map((s, i) => (
-                        <div key={i} className="supp-card" style={{ borderColor: `${theme.colour}30` }}>
-                          <div className="supp-icon" style={{ background: theme.light }}>🌱</div>
-                          <div>
-                            <div className="supp-name" style={{ color: theme.text }}>{s.name}</div>
-                            <div className="supp-dose">📋 {s.dose}</div>
-                            <div className="supp-benefit">{s.benefit}</div>
+                  {activeTab==="supplements" && plan.supplements && (
+                    <>
+                      <div className="sec-title">Herbal Support (Dravyaguna)</div>
+                      <div className="supp-list">
+                        {plan.supplements.map((s,i)=>(
+                          <div key={i} className="supp-card" style={{borderLeft:`3px solid ${theme.color}`}}>
+                            <div className="supp-icon" style={{background:theme.bg}}>🌿</div>
+                            <div>
+                              <div className="supp-name">{s.name}</div>
+                              <div className="supp-dose">📋 {s.dose}</div>
+                              <div className="supp-benefit">{s.benefit}</div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* ── FASTING ── */}
-                  {activeTab === "fasting" && plan.fasting && (
-                    <div className="fasting-box" style={{ borderColor: `${theme.colour}30` }}>
-                      {Object.entries(plan.fasting).map(([key, val]) => (
-                        <div key={key} className="fasting-row">
-                          <div className="fasting-label" style={{ color: theme.colour }}>
-                            {key.replace(/_/g," ").toUpperCase()}
-                          </div>
-                          <div>{val}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* ── SAMPLE DAY ── */}
-                  {activeTab === "day" && plan.sample_day && (
-                    <div className="sampleday-list">
-                      {Object.entries(plan.sample_day).map(([time, activity], i) => (
-                        <div key={i} className="sampleday-item">
-                          <div className="sampleday-time">{time}</div>
-                          <div className="sampleday-dot-wrap">
-                            <div className="sampleday-dot"
-                              style={{ background: theme.colour, boxShadow: `0 0 0 2px ${theme.colour}` }} />
-                          </div>
-                          <div className="sampleday-text">{activity}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Goal note */}
-                  {plan.goal_info && (
-                    <div style={{ marginTop: "1.6rem", padding: "1.2rem", background: theme.light, border: `1px solid ${theme.colour}30`, borderRadius: 14 }}>
-                      <div className="sec-title" style={{ border: "none", marginBottom: 6, paddingBottom: 0 }}>
-                        🎯 {plan.goal} Goal — Key Guidance
+                        ))}
                       </div>
-                      <p style={{ fontSize: 13, color: theme.text, marginBottom: 8, fontStyle: "italic" }}>
-                        {plan.goal_info.note}
-                      </p>
-                      {(plan.goal_info.extra_tips || []).map((tip, i) => (
-                        <div key={i} style={{ fontSize: 12.5, color: "#4A2C14", lineHeight: 1.55, padding: "4px 0", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
-                          • {tip}
-                        </div>
-                      ))}
-                    </div>
+                    </>
                   )}
+
                 </div>
               </>
             )}
-          </section>
+          </main>
         </div>
       </div>
     </>
